@@ -189,7 +189,7 @@ data:
       ],
       "refresh": "1s",
       "schemaVersion": 39,
-      "tags": ["agri-iot-compose-k8s-cloud", "iot", "agriculture"],
+      "tags": ["agriculture", "iot", "docker", "compose", "k8s", "cloud", "intelligent"],
       "templating": { "list": [] },
       "time": { "from": "now-30m", "to": "now" },
       "timepicker": { "refresh_intervals": ["1s", "2s", "5s", "10s", "30s", "1m"] },
