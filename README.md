@@ -1,8 +1,11 @@
-# 🌱 agri-iot-compose-k8s-cloud — Plateforme cloud-native d'irrigation intelligente
+# 🌱 agri-iot-compose-k8s-cloud
 
-> **Projet final — Cloud Computing (Master / S9).** Plateforme cloud pour objets connectés (IoT) :
-> **recevoir** des données de capteurs → **traiter** (*edge*) → **stocker** (*time-series*) →
-> **visualiser** → **décider** (recommandation d'irrigation + prévision de rendement par ML).
+> **Plateforme cloud-native d'irrigation intelligente pour l'agriculture connectée (IoT).**
+> Projet final — Cloud Computing (Master / S9).
+>
+> Chaîne de bout en bout : **acquisition** (capteurs) → **edge computing** (filtrage / agrégation /
+> décision) → **ingestion** (MQTT) → **stockage** (*time-series*) → **visualisation** →
+> **aide à la décision** (recommandation d'irrigation + prévision de rendement par *machine learning*).
 
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-HPA-326CE5?logo=kubernetes&logoColor=white)
@@ -10,12 +13,22 @@
 ![MQTT](https://img.shields.io/badge/MQTT-Mosquitto-660066?logo=eclipsemosquitto&logoColor=white)
 ![InfluxDB](https://img.shields.io/badge/InfluxDB-2.7-22ADF6?logo=influxdb&logoColor=white)
 ![Grafana](https://img.shields.io/badge/Grafana-11-F46800?logo=grafana&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-green)
 
-agri-iot-compose-k8s-cloud émule un réseau de capteurs agricoles (humidité du sol, température, pluviométrie, pH),
+## Présentation
+
+La plateforme émule un réseau de capteurs agricoles (humidité du sol, température, pluviométrie, pH),
 traite les mesures à la volée dans un service *edge* conteneurisé, les ingère dans une base
-*time-series*, les visualise dans Grafana et expose une API qui recommande l'irrigation et prévoit
-le rendement. **100 % logiciel et conteneurisé — aucun matériel physique** (les capteurs sont des
-*sensor simulators*). Ce dossier est **autonome** : il se clone, se build et se lance seul.
+*time-series*, les visualise dans Grafana et expose une API REST qui **recommande l'irrigation** et
+**prévoit le rendement** par apprentissage automatique.
+
+L'ensemble est **100 % logiciel et conteneurisé — aucun matériel physique requis** (les capteurs
+sont des *sensor simulators*). Le dépôt est **autonome** : il se clone, se build et se déploie seul,
+aussi bien en **Docker Compose** (développement) qu'en **Kubernetes** (orchestration & autoscaling).
+
+> 💡 **Contexte métier.** L'irrigation représente l'essentiel de la consommation d'eau agricole.
+> Piloter l'arrosage à partir de mesures temps réel (humidité, météo, pH) plutôt que d'un calendrier
+> fixe réduit le gaspillage d'eau et améliore le rendement — c'est l'objectif fonctionnel du projet.
 
 ## 📑 Sommaire
 
@@ -69,6 +82,18 @@ le rendement. **100 % logiciel et conteneurisé — aucun matériel physique** (
 
 </details>
 
+L'architecture suit un modèle **microservices** découplé par messagerie, organisé en cinq couches :
+
+| Couche | Rôle | Composants |
+|--------|------|------------|
+| **Acquisition** | Émulation des capteurs, publication MQTT | `sensor-simulator` |
+| **Edge** | Filtrage, agrégation par fenêtre, anomalies, décision d'irrigation, *store-and-forward* | `edge-service` |
+| **Messagerie** | Bus pub/sub découplant producteurs et consommateurs | `mosquitto` (broker MQTT) |
+| **Stockage & ingestion** | Persistance *time-series* + rétention/downsampling | `telegraf` → `influxdb` |
+| **Restitution** | Tableaux de bord temps réel + API REST/ML | `grafana`, `api-service` |
+
+Détail des services et de leurs images :
+
 | # | Service | Image / langage | Port | Rôle |
 |---|---------|-----------------|------|------|
 | 1 | `sensor-simulator` | Python 3.12 + paho-mqtt | — | Émule les capteurs, publie en MQTT (`agri/<site>/<parcel>/raw/<type>`) |
@@ -78,6 +103,24 @@ le rendement. **100 % logiciel et conteneurisé — aucun matériel physique** (
 | 5 | `influxdb` | influxdb:2.7 | 8086 | Base *time-series* |
 | 6 | `api-service` | FastAPI + scikit-learn | 8000 | API REST : état, recommandation, prévision de rendement (ML), alertes |
 | 7 | `grafana` | grafana:11 | 3000 | Tableaux de bord temps réel |
+
+### Infrastructure de déploiement
+
+Le même ensemble de services se déploie sur deux infrastructures, du poste de développement au
+cluster orchestré :
+
+| | **Docker Compose** (dev) | **Kubernetes** (orchestration) |
+|---|--------------------------|--------------------------------|
+| **Cible** | poste local, démo rapide | cluster (kind / minikube / k3d) |
+| **Définition** | [`deploy/docker-compose.yml`](deploy/docker-compose.yml) | [`deploy/k8s/`](deploy/k8s/) (kustomize) |
+| **Config / secrets** | `.env` | `ConfigMap` + `Secret` |
+| **Persistance** | volumes Docker | `PersistentVolumeClaim` |
+| **Mise à l'échelle** | `--scale` (manuel) | **HPA** (autoscaling CPU) + probes, requests/limits |
+| **Réseau** | réseau bridge `agri-iot-compose-k8s-cloud` | `Service` (ClusterIP / NodePort) |
+| **Lancement** | `make up` | `make k8s-up` |
+
+> Les images applicatives portent un tag unique (`agri-iot-compose-k8s-cloud/<svc>:latest`) **partagé**
+> entre Compose et Kubernetes : un seul `make build` alimente les deux infrastructures.
 
 ---
 
@@ -424,3 +467,10 @@ agri-iot-compose-k8s-cloud/
 > Astuce diagnostic : `$COMPOSE ps -a` (conteneurs arrêtés inclus) et
 > `docker inspect <conteneur> --format '{{.State.ExitCode}} {{.State.Error}}'` donnent
 > la cause exacte d'un arrêt (le `mount` source apparaît aussi dans `.Mounts`).
+
+---
+
+## Licence
+
+Distribué sous licence **MIT** — voir [`LICENSE`](LICENSE). Projet réalisé dans un cadre
+académique (Master / S9, Cloud Computing).
