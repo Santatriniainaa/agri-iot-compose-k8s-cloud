@@ -141,7 +141,7 @@
       ]
     }
   ],
-  "refresh": "1s",
+  "refresh": "5s",
   "schemaVersion": 39,
   "tags": ["agriculture", "iot", "docker", "compose", "k8s", "cloud", "intelligent"],
   "templating": { "list": [] },

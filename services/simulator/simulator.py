@@ -41,10 +41,13 @@ PHASE_INFLUENCE = 0.05
 RAIN_EVENT_PROB = 0.03
 RAIN_MIN_MM, RAIN_MAX_MM = 0.5, 12.0
 
-EVAPO_BASE_C = 18.0            # température au-delà de laquelle le sol sèche
+EVAPO_BASE_C = 18.0           # température au-delà de laquelle l'évapotranspiration s'ajoute
 EVAPO_RATE = 0.05
-RAIN_REHYDRATION = 1.8        # gain d'humidité par mm de pluie
-MOISTURE_NOISE_SD = 0.15
+BASELINE_DRY = 0.35          # assèchement permanent par pas (drainage + absorption racinaire) :
+                             # empêche la saturation à MOISTURE_MAX et crée un cycle réaliste
+                             # assèchement → pluie (l'irrigation peut alors se déclencher)
+RAIN_REHYDRATION = 1.8       # gain d'humidité par mm de pluie
+MOISTURE_NOISE_SD = 0.30
 MOISTURE_MIN, MOISTURE_MAX = 5.0, 60.0
 
 PH_DRIFT_SD = 0.01
@@ -97,7 +100,7 @@ class ParcelState:
             rainfall = round(random.uniform(RAIN_MIN_MM, RAIN_MAX_MM), 1)
 
         evapo = max(0.0, temperature - EVAPO_BASE_C) * EVAPO_RATE
-        self.soil_moisture += rainfall * RAIN_REHYDRATION - evapo
+        self.soil_moisture += rainfall * RAIN_REHYDRATION - evapo - BASELINE_DRY
         self.soil_moisture += random.gauss(0, MOISTURE_NOISE_SD)
         self.soil_moisture = max(MOISTURE_MIN, min(MOISTURE_MAX, self.soil_moisture))
 

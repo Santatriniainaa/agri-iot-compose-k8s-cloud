@@ -20,8 +20,8 @@ data:
   PARCELS: "zoneA,zoneB,zoneC"
   PUBLISH_INTERVAL: "2"
   ANOMALY_PROB: "0.01"
-  # Edge
-  WINDOW_SECONDS: "10"
+  # Edge — fenêtre alignée sur la cadence Telegraf/Grafana (5 s) pour un flux temps réel
+  WINDOW_SECONDS: "5"
   MOISTURE_THRESHOLD: "30"
   RAIN_SKIP_MM: "2"
 ---

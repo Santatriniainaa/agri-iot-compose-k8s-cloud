@@ -224,7 +224,7 @@ En Kubernetes, les mêmes clés sont portées par un `ConfigMap` (non sensible) 
 | `PARCELS` | `zoneA,zoneB,zoneC` | simulator | parcelles simulées (CSV) |
 | `PUBLISH_INTERVAL` | `2` | simulator | secondes entre deux salves de mesures |
 | `ANOMALY_PROB` | `0.01` | simulator | probabilité d'injecter une anomalie |
-| `WINDOW_SECONDS` | `10` | edge | fenêtre d'agrégation glissante |
+| `WINDOW_SECONDS` | `5` | edge | fenêtre d'agrégation glissante (alignée 5 s : Telegraf + refresh Grafana) |
 | `MOISTURE_THRESHOLD` | `30` | edge | %VWC sous lequel irriguer |
 | `RAIN_SKIP_MM` | `2` | edge | pluie cumulée annulant l'irrigation |
 
@@ -237,7 +237,9 @@ En Kubernetes, les mêmes clés sont portées par un `ConfigMap` (non sensible) 
 Génère des séries **réalistes** via un modèle agronomique simplifié, état mémorisé par parcelle :
 
 - **Température** : cycle diurne (sinusoïde 24 h) + bruit gaussien, déphasage propre à chaque parcelle.
-- **Humidité du sol** : équilibre **évapotranspiration** (↑ avec la température) / **réhydratation** par la pluie.
+- **Humidité du sol** : assèchement permanent (drainage + absorption racinaire) + **évapotranspiration**
+  (↑ avec la température), contre **réhydratation** par la pluie → cycle réaliste qui descend sous le
+  seuil et déclenche l'irrigation (au lieu de saturer).
 - **Pluviométrie** : événements aléatoires (probabilité `RAIN_EVENT_PROB`), 0.5–12 mm.
 - **pH** : marche aléatoire lente bornée ; **batterie** : décharge monotone.
 - **Anomalies** : injection occasionnelle (`ANOMALY_PROB`) de valeurs aberrantes pour exercer l'edge.
