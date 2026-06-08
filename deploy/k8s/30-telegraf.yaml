@@ -1,0 +1,77 @@
+# Telegraf — ingestion MQTT → InfluxDB. Stateless (répliquer via shared
+# subscriptions $share/ pour éviter les doublons). 1 réplica en dev.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: telegraf-config
+  namespace: agri-iot-compose-k8s-cloud
+data:
+  telegraf.conf: |
+    [agent]
+      interval = "5s"
+      flush_interval = "5s"
+      omit_hostname = true
+
+    [[inputs.mqtt_consumer]]
+      servers = ["tcp://mosquitto:1883"]
+      topics = ["agri/+/+/processed"]
+      qos = 1
+      client_id = "telegraf-processed"
+      username = "${MQTT_USERNAME}"
+      password = "${MQTT_PASSWORD}"
+      data_format = "json"
+      json_time_key = "ts"
+      json_time_format = "2006-01-02T15:04:05Z07:00"
+      tag_keys = ["site", "parcel"]
+      name_override = "agri_processed"
+
+    [[inputs.mqtt_consumer]]
+      servers = ["tcp://mosquitto:1883"]
+      topics = ["agri/+/+/raw/+"]
+      qos = 1
+      client_id = "telegraf-raw"
+      username = "${MQTT_USERNAME}"
+      password = "${MQTT_PASSWORD}"
+      data_format = "json"
+      json_time_key = "ts"
+      json_time_format = "2006-01-02T15:04:05Z07:00"
+      tag_keys = ["site", "parcel", "type", "sensor_id"]
+      name_override = "agri_raw"
+
+    [[outputs.influxdb_v2]]
+      urls = ["http://influxdb:8086"]
+      token = "${INFLUX_TOKEN}"
+      organization = "${INFLUX_ORG}"
+      bucket = "${INFLUX_BUCKET}"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telegraf
+  namespace: agri-iot-compose-k8s-cloud
+  labels: { app: telegraf-agri-iot-compose-k8s-cloud }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: telegraf-agri-iot-compose-k8s-cloud }
+  template:
+    metadata:
+      labels: { app: telegraf-agri-iot-compose-k8s-cloud }
+    spec:
+      containers:
+        - name: telegraf
+          image: telegraf:1.30
+          env:
+            - { name: INFLUX_TOKEN, valueFrom: { secretKeyRef: { name: agri-iot-compose-k8s-cloud-secret, key: INFLUX_TOKEN } } }
+            - { name: INFLUX_ORG,    valueFrom: { configMapKeyRef: { name: agri-iot-compose-k8s-cloud-config, key: INFLUX_ORG } } }
+            - { name: INFLUX_BUCKET, valueFrom: { configMapKeyRef: { name: agri-iot-compose-k8s-cloud-config, key: INFLUX_BUCKET } } }
+            - { name: MQTT_USERNAME, valueFrom: { secretKeyRef: { name: agri-iot-compose-k8s-cloud-secret, key: MQTT_USERNAME } } }
+            - { name: MQTT_PASSWORD, valueFrom: { secretKeyRef: { name: agri-iot-compose-k8s-cloud-secret, key: MQTT_PASSWORD } } }
+          volumeMounts:
+            - { name: config, mountPath: /etc/telegraf/telegraf.conf, subPath: telegraf.conf, readOnly: true }
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits:   { cpu: "500m", memory: "256Mi" }
+      volumes:
+        - name: config
+          configMap: { name: telegraf-config }

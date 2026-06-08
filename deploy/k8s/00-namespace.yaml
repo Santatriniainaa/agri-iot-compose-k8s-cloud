@@ -1,0 +1,7 @@
+# Namespace dédié : isole les ressources du projet (quota, RBAC, suppression atomique).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: agri-iot-compose-k8s-cloud
+  labels:
+    app.kubernetes.io/part-of: agri-iot-compose-k8s-cloud

@@ -1,0 +1,28 @@
+# Kustomization — déploie toute la stack agri-iot-compose-k8s-cloud en une commande :
+#   kubectl apply -k deploy/k8s/        (ou : make k8s-deploy)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Toutes les ressources sont créées dans ce namespace.
+namespace: agri-iot-compose-k8s-cloud
+
+# Labels recommandés (https://kubernetes.io/docs/concepts/overview/working-with-objects/common-labels/)
+# appliqués à toutes les ressources. includeSelectors: false → on n'altère pas les
+# selectors/matchLabels (immutables sur un Deployment déjà créé).
+labels:
+  - includeSelectors: false
+    pairs:
+      app.kubernetes.io/part-of: agri-iot-compose-k8s-cloud
+      app.kubernetes.io/managed-by: kustomize
+
+resources:
+  - 00-namespace.yaml
+  - 01-config.yaml
+  - 10-mosquitto.yaml
+  - 20-influxdb.yaml
+  - 30-telegraf.yaml
+  - 40-edge-service.yaml
+  - 50-sensor-simulator.yaml
+  - 60-api-service.yaml
+  - 65-grafana-provisioning.yaml
+  - 70-grafana.yaml

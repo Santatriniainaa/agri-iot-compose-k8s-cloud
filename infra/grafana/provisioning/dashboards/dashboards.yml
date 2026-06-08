@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: agri-iot-compose-k8s-cloud
+    orgId: 1
+    folder: ''
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards

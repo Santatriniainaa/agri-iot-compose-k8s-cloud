@@ -1,0 +1,63 @@
+# edge-service — pré-traitement (filtrage / agrégation / anomalies / décision).
+# Stateless → scalable horizontalement (HPA). Image locale : voir k8s/README.md.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edge-service
+  namespace: agri-iot-compose-k8s-cloud
+  labels: { app: edge-service-agri-iot-compose-k8s-cloud }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: edge-service-agri-iot-compose-k8s-cloud }
+  template:
+    metadata:
+      labels: { app: edge-service-agri-iot-compose-k8s-cloud }
+    spec:
+      containers:
+        - name: edge-service
+          image: agri-iot-compose-k8s-cloud/edge-service:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef: { name: agri-iot-compose-k8s-cloud-config }
+          env:
+            - { name: MQTT_USERNAME, valueFrom: { secretKeyRef: { name: agri-iot-compose-k8s-cloud-secret, key: MQTT_USERNAME } } }
+            - { name: MQTT_PASSWORD, valueFrom: { secretKeyRef: { name: agri-iot-compose-k8s-cloud-secret, key: MQTT_PASSWORD } } }
+          resources:
+            requests: { cpu: "100m", memory: "64Mi" }   # base du calcul HPA
+            limits:   { cpu: "500m", memory: "256Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: edge-service
+  namespace: agri-iot-compose-k8s-cloud
+spec:
+  clusterIP: None            # headless (pas de port exposé, client MQTT sortant)
+  selector: { app: edge-service-agri-iot-compose-k8s-cloud }
+---
+# HorizontalPodAutoscaler — scaling out sur charge CPU (élasticité, étape 6).
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: edge-service
+  namespace: agri-iot-compose-k8s-cloud
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: edge-service
+  minReplicas: 1
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 65
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+    scaleDown:
+      stabilizationWindowSeconds: 120

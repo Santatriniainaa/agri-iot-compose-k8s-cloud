@@ -1,0 +1,13 @@
+# Cluster kind du projet — nom figé pour des ressources nommées de façon cohérente.
+# Le nœud devient « agri-iot-compose-k8s-cloud-control-plane ».
+#   kind create cluster --config deploy/k8s/kind-config.yaml   (ou : make k8s-cluster)
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: agri-iot-compose-k8s-cloud
+nodes:
+  - role: control-plane
+    # Expose les NodePort du cluster directement sur l'hôte (pas de port-forward) :
+    #   API FastAPI → http://localhost:30800/docs · Grafana → http://localhost:30300
+    extraPortMappings:
+      - { containerPort: 30800, hostPort: 30800, protocol: TCP }   # api-service
+      - { containerPort: 30300, hostPort: 30300, protocol: TCP }   # grafana

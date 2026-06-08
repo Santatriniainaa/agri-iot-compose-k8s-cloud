@@ -1,0 +1,108 @@
+# InfluxDB — base time-series (stateful, PVC). 1 réplica (HA discutée dans le rapport).
+# Rétention du bucket brut + downsampling horaire (ConfigMap influxdb-init).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: influxdb-init
+  namespace: agri-iot-compose-k8s-cloud
+data:
+  # Exécuté une seule fois à l'initialisation : crée le bucket downsamplé + la task Flux.
+  01-downsampling.sh: |
+    #!/bin/bash
+    set -euo pipefail
+    RAW_BUCKET="${DOCKER_INFLUXDB_INIT_BUCKET}"
+    DS_BUCKET="${RAW_BUCKET}_downsampled"
+    ORG="${DOCKER_INFLUXDB_INIT_ORG}"
+    TOKEN="${DOCKER_INFLUXDB_INIT_ADMIN_TOKEN}"
+    DS_RETENTION="${INFLUX_DOWNSAMPLE_RETENTION:-90d}"
+    HOST="http://localhost:8086"
+
+    echo "[influx-init] bucket downsamplé '${DS_BUCKET}' (rétention ${DS_RETENTION})..."
+    influx bucket create --host "${HOST}" --token "${TOKEN}" --org "${ORG}" \
+      --name "${DS_BUCKET}" --retention "${DS_RETENTION}" \
+      || echo "[influx-init] bucket déjà présent."
+
+    cat > /tmp/downsample.flux <<EOF
+    option task = {name: "downsample_agri_processed_1h", every: 1h, offset: 1m}
+
+    from(bucket: "${RAW_BUCKET}")
+      |> range(start: -task.every)
+      |> filter(fn: (r) => r._measurement == "agri_processed")
+      |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
+      |> to(bucket: "${DS_BUCKET}", org: "${ORG}")
+    EOF
+
+    echo "[influx-init] task downsample_agri_processed_1h..."
+    influx task create --host "${HOST}" --token "${TOKEN}" --org "${ORG}" \
+      --file /tmp/downsample.flux || echo "[influx-init] task déjà présente."
+    echo "[influx-init] terminé."
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: influxdb-data
+  namespace: agri-iot-compose-k8s-cloud
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: influxdb
+  namespace: agri-iot-compose-k8s-cloud
+  labels: { app: influxdb-agri-iot-compose-k8s-cloud }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: influxdb-agri-iot-compose-k8s-cloud }
+  template:
+    metadata:
+      labels: { app: influxdb-agri-iot-compose-k8s-cloud }
+    spec:
+      containers:
+        - name: influxdb
+          image: influxdb:2.7
+          ports:
+            - { containerPort: 8086, name: http }
+          env:
+            - { name: DOCKER_INFLUXDB_INIT_MODE,  value: "setup" }
+            - { name: DOCKER_INFLUXDB_INIT_ORG,    valueFrom: { configMapKeyRef: { name: agri-iot-compose-k8s-cloud-config, key: INFLUX_ORG } } }
+            - { name: DOCKER_INFLUXDB_INIT_BUCKET, valueFrom: { configMapKeyRef: { name: agri-iot-compose-k8s-cloud-config, key: INFLUX_BUCKET } } }
+            - { name: DOCKER_INFLUXDB_INIT_USERNAME,    valueFrom: { secretKeyRef: { name: agri-iot-compose-k8s-cloud-secret, key: INFLUX_USERNAME } } }
+            - { name: DOCKER_INFLUXDB_INIT_PASSWORD,    valueFrom: { secretKeyRef: { name: agri-iot-compose-k8s-cloud-secret, key: INFLUX_PASSWORD } } }
+            - { name: DOCKER_INFLUXDB_INIT_ADMIN_TOKEN, valueFrom: { secretKeyRef: { name: agri-iot-compose-k8s-cloud-secret, key: INFLUX_TOKEN } } }
+            - { name: DOCKER_INFLUXDB_INIT_RETENTION,   valueFrom: { configMapKeyRef: { name: agri-iot-compose-k8s-cloud-config, key: INFLUX_RETENTION } } }
+            - { name: INFLUX_DOWNSAMPLE_RETENTION,      valueFrom: { configMapKeyRef: { name: agri-iot-compose-k8s-cloud-config, key: INFLUX_DOWNSAMPLE_RETENTION } } }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/influxdb2 }
+            - { name: init, mountPath: /docker-entrypoint-initdb.d, readOnly: true }
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1",    memory: "1Gi" }
+          readinessProbe:
+            httpGet: { path: /health, port: 8086 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8086 }
+            initialDelaySeconds: 20
+            periodSeconds: 20
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: influxdb-data }
+        - name: init
+          configMap: { name: influxdb-init, defaultMode: 0555 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: influxdb
+  namespace: agri-iot-compose-k8s-cloud
+spec:
+  selector: { app: influxdb-agri-iot-compose-k8s-cloud }
+  ports:
+    - { name: http, port: 8086, targetPort: 8086 }

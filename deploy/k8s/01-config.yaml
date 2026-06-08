@@ -1,0 +1,42 @@
+# Configuration (ConfigMap) + secrets (Secret) — séparation 12-factor.
+# ⚠️ Démo : Secret en clair. Prod : gestionnaire de secrets (Vault, Sealed Secrets, SOPS).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agri-iot-compose-k8s-cloud-config
+  namespace: agri-iot-compose-k8s-cloud
+data:
+  # MQTT
+  MQTT_HOST: "mosquitto"
+  MQTT_PORT: "1883"
+  # InfluxDB (non sensible)
+  INFLUX_URL: "http://influxdb:8086"
+  INFLUX_ORG: "agri-iot-compose-k8s-cloud"
+  INFLUX_BUCKET: "telemetry"
+  INFLUX_RETENTION: "30d"               # rétention du bucket brut
+  INFLUX_DOWNSAMPLE_RETENTION: "90d"    # rétention du bucket downsamplé
+  # Simulation capteurs
+  SITE: "farm01"
+  PARCELS: "zoneA,zoneB,zoneC"
+  PUBLISH_INTERVAL: "2"
+  ANOMALY_PROB: "0.01"
+  # Edge
+  WINDOW_SECONDS: "10"
+  MOISTURE_THRESHOLD: "30"
+  RAIN_SKIP_MM: "2"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: agri-iot-compose-k8s-cloud-secret
+  namespace: agri-iot-compose-k8s-cloud
+type: Opaque
+stringData:
+  INFLUX_TOKEN: "agri-iot-compose-k8s-cloud-dev-token-change-me-0123456789"
+  INFLUX_USERNAME: "admin"
+  INFLUX_PASSWORD: "agri-iot-compose-k8s-cloud123"
+  GRAFANA_USER: "admin"
+  GRAFANA_PASSWORD: "agri-iot-compose-k8s-cloud"
+  # Identifiants MQTT (broker en allow_anonymous=false)
+  MQTT_USERNAME: "agri-iot-compose-k8s-cloud"
+  MQTT_PASSWORD: "agri-iot-compose-k8s-cloud-mqtt-change-me"

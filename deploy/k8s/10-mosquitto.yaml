@@ -1,0 +1,101 @@
+# Mosquitto — broker MQTT (pub/sub, découplage producteurs/consommateurs).
+# 1 réplica en dev (SPOF ; HA discutée dans le rapport).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mosquitto-config
+  namespace: agri-iot-compose-k8s-cloud
+data:
+  mosquitto.conf: |
+    listener 1883
+    protocol mqtt
+    listener 9001
+    protocol websockets
+    # Auth login/mot de passe (passwd généré au démarrage). Prod : + TLS/mTLS (cf. Erl ch.10).
+    allow_anonymous false
+    password_file /mosquitto/data/passwd
+    persistence true
+    persistence_location /mosquitto/data/
+    log_dest stdout
+    log_type warning
+    log_type notice
+    connection_messages true
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mosquitto-data
+  namespace: agri-iot-compose-k8s-cloud
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mosquitto
+  namespace: agri-iot-compose-k8s-cloud
+  labels: { app: mosquitto-agri-iot-compose-k8s-cloud }
+spec:
+  replicas: 1                      # stateful (persistence) → 1 réplica en dev
+  strategy: { type: Recreate }     # évite 2 pods montant le même PVC RWO
+  selector:
+    matchLabels: { app: mosquitto-agri-iot-compose-k8s-cloud }
+  template:
+    metadata:
+      labels: { app: mosquitto-agri-iot-compose-k8s-cloud }
+    spec:
+      containers:
+        - name: mosquitto
+          image: eclipse-mosquitto:2
+          env:
+            - { name: MQTT_USERNAME, valueFrom: { secretKeyRef: { name: agri-iot-compose-k8s-cloud-secret, key: MQTT_USERNAME } } }
+            - { name: MQTT_PASSWORD, valueFrom: { secretKeyRef: { name: agri-iot-compose-k8s-cloud-secret, key: MQTT_PASSWORD } } }
+          # Génère le fichier passwd (hashé) puis lance le broker.
+          command: ["sh", "-c"]
+          args:
+            - |
+              # -c crée un fichier neuf et refuse d'écraser : on purge d'abord
+              # pour rester idempotent au redémarrage (passwd régénéré depuis le secret).
+              rm -f /mosquitto/data/passwd
+              mosquitto_passwd -b -c /mosquitto/data/passwd "$MQTT_USERNAME" "$MQTT_PASSWORD"
+              chmod 0600 /mosquitto/data/passwd
+              # L'init tourne en root ; mosquitto bascule sur l'utilisateur "mosquitto"
+              # qui doit pouvoir lire passwd et écrire la persistance (sinon exit 13).
+              chown -R mosquitto:mosquitto /mosquitto/data
+              exec mosquitto -c /mosquitto/config/mosquitto.conf
+          ports:
+            - { containerPort: 1883, name: mqtt }
+            - { containerPort: 9001, name: ws }
+          volumeMounts:
+            - { name: config, mountPath: /mosquitto/config/mosquitto.conf, subPath: mosquitto.conf, readOnly: true }
+            - { name: data, mountPath: /mosquitto/data }
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits:   { cpu: "250m", memory: "128Mi" }
+          livenessProbe:
+            tcpSocket: { port: 1883 }
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            tcpSocket: { port: 1883 }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap: { name: mosquitto-config }
+        - name: data
+          persistentVolumeClaim: { claimName: mosquitto-data }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mosquitto
+  namespace: agri-iot-compose-k8s-cloud
+spec:
+  selector: { app: mosquitto-agri-iot-compose-k8s-cloud }
+  ports:
+    - { name: mqtt, port: 1883, targetPort: 1883 }
+    - { name: ws,   port: 9001, targetPort: 9001 }

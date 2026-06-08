@@ -1,0 +1,28 @@
+# sensor-simulator — capteurs émulés. Stateless → augmenter `replicas`
+# (ou kubectl scale) pour simuler davantage de capteurs.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sensor-simulator
+  namespace: agri-iot-compose-k8s-cloud
+  labels: { app: sensor-simulator-agri-iot-compose-k8s-cloud }
+spec:
+  replicas: 1                  # kubectl scale deploy/sensor-simulator --replicas=N
+  selector:
+    matchLabels: { app: sensor-simulator-agri-iot-compose-k8s-cloud }
+  template:
+    metadata:
+      labels: { app: sensor-simulator-agri-iot-compose-k8s-cloud }
+    spec:
+      containers:
+        - name: sensor-simulator
+          image: agri-iot-compose-k8s-cloud/sensor-simulator:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef: { name: agri-iot-compose-k8s-cloud-config }
+          env:
+            - { name: MQTT_USERNAME, valueFrom: { secretKeyRef: { name: agri-iot-compose-k8s-cloud-secret, key: MQTT_USERNAME } } }
+            - { name: MQTT_PASSWORD, valueFrom: { secretKeyRef: { name: agri-iot-compose-k8s-cloud-secret, key: MQTT_PASSWORD } } }
+          resources:
+            requests: { cpu: "50m",  memory: "64Mi" }
+            limits:   { cpu: "250m", memory: "128Mi" }

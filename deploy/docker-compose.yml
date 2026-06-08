@@ -1,0 +1,246 @@
+name: agri-iot-compose-k8s-cloud
+
+# ──────────────────────────────────────────────────────────────────────────
+# agri-iot-compose-k8s-cloud — plateforme cloud-native d'irrigation intelligente
+# Flux : sensor-simulator → edge-service → Mosquitto → Telegraf → InfluxDB
+#                                                              ↘ Grafana / API
+# Lancement (depuis agri-iot-compose-k8s-cloud/) :  make up
+#   équivaut à : docker compose -f deploy/docker-compose.yml --project-directory . up -d --build
+#   (--project-directory . rend les chemins ./services et ./infra relatifs à agri-iot-compose-k8s-cloud/)
+# ──────────────────────────────────────────────────────────────────────────
+
+# Rotation des logs (anchor réutilisé par tous les services) : borne l'espace
+# disque consommé par les journaux conteneurs (3 fichiers de 10 Mo max).
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+
+  # 1) Broker MQTT --------------------------------------------------------
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: agri-iot-compose-k8s-cloud-mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"      # MQTT
+      - "9001:9001"      # WebSocket (optionnel)
+    environment:
+      MQTT_USERNAME: ${MQTT_USERNAME}
+      MQTT_PASSWORD: ${MQTT_PASSWORD}
+    # Génère le fichier passwd (hashé) à partir des identifiants puis lance le broker.
+    # rm -f : régénération idempotente (le fichier persiste dans le volume entre
+    # redémarrages, et `mosquitto_passwd -c` refuse d'écraser un passwd existant).
+    command:
+      - sh
+      - -c
+      - |
+        rm -f /mosquitto/data/passwd
+        mosquitto_passwd -b -c /mosquitto/data/passwd "$$MQTT_USERNAME" "$$MQTT_PASSWORD"
+        chmod 0600 /mosquitto/data/passwd
+        # mosquitto démarre en root puis abandonne ses privilèges vers l'utilisateur
+        # `mosquitto` : le passwd doit lui appartenir, sinon « Unable to open pwfile ».
+        chown mosquitto:mosquitto /mosquitto/data/passwd
+        exec mosquitto -c /mosquitto/config/mosquitto.conf
+    volumes:
+      - ./infra/mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+    networks: [agri-iot-compose-k8s-cloud]
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -t '$$SYS/#' -C 1 -W 3 -h localhost -u \"$$MQTT_USERNAME\" -P \"$$MQTT_PASSWORD\" || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # 2) Base de données time-series ---------------------------------------
+  influxdb:
+    image: influxdb:2.7
+    container_name: agri-iot-compose-k8s-cloud-influxdb
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUX_USERNAME}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUX_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUX_ORG}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUX_BUCKET}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN}
+      DOCKER_INFLUXDB_INIT_RETENTION: ${INFLUX_RETENTION}      # rétention du bucket brut
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    networks: [agri-iot-compose-k8s-cloud]
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  # 2b) Init one-shot : downsampling (bucket *_downsampled + task Flux horaire).
+  #     S'exécute après qu'InfluxDB soit sain, crée les ressources puis s'arrête.
+  #     Idempotent : ne recrée pas la task si elle existe déjà (cf. étape 4).
+  influx-init:
+    image: influxdb:2.7
+    container_name: agri-iot-compose-k8s-cloud-influx-init
+    restart: "no"
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    environment:
+      INFLUX_HOST: http://influxdb:8086        # lu automatiquement par la CLI influx
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+      INFLUX_ORG: ${INFLUX_ORG}
+      INFLUX_BUCKET: ${INFLUX_BUCKET}
+      INFLUX_DOWNSAMPLE_RETENTION: ${INFLUX_DOWNSAMPLE_RETENTION}
+    entrypoint: ["bash", "-c"]
+    command:
+      - |
+        set -e
+        DS_BUCKET="$${INFLUX_BUCKET}_downsampled"
+        echo "[influx-init] bucket $$DS_BUCKET (rétention $$INFLUX_DOWNSAMPLE_RETENTION)"
+        influx bucket create --name "$$DS_BUCKET" --retention "$$INFLUX_DOWNSAMPLE_RETENTION" \
+          || echo "[influx-init] bucket déjà présent"
+        cat > /tmp/downsample.flux <<EOF
+        option task = {name: "downsample_agri_processed_1h", every: 1h, offset: 1m}
+
+        from(bucket: "$$INFLUX_BUCKET")
+          |> range(start: -task.every)
+          |> filter(fn: (r) => r._measurement == "agri_processed")
+          |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
+          |> to(bucket: "$$DS_BUCKET", org: "$$INFLUX_ORG")
+        EOF
+        if influx task list | grep -q downsample_agri_processed_1h; then
+          echo "[influx-init] task déjà présente"
+        else
+          influx task create --file /tmp/downsample.flux
+        fi
+        echo "[influx-init] terminé"
+    networks: [agri-iot-compose-k8s-cloud]
+    logging: *default-logging
+
+  # 3) Ingestion MQTT → InfluxDB -----------------------------------------
+  telegraf:
+    image: telegraf:1.30
+    container_name: agri-iot-compose-k8s-cloud-telegraf
+    restart: unless-stopped
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    environment:
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+      INFLUX_ORG: ${INFLUX_ORG}
+      INFLUX_BUCKET: ${INFLUX_BUCKET}
+      MQTT_USERNAME: ${MQTT_USERNAME}
+      MQTT_PASSWORD: ${MQTT_PASSWORD}
+    volumes:
+      - ./infra/telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+    networks: [agri-iot-compose-k8s-cloud]
+    logging: *default-logging
+
+  # 4) Edge service (filtrage / agrégation / anomalies / décision) -------
+  edge-service:
+    build: ./services/edge
+    image: agri-iot-compose-k8s-cloud/edge-service:latest   # tag partagé avec les manifests k8s
+    container_name: agri-iot-compose-k8s-cloud-edge
+    init: true                 # tini : transmission propre de SIGTERM + reaping
+    restart: unless-stopped
+    depends_on:
+      mosquitto:
+        condition: service_started
+    environment:
+      MQTT_HOST: ${MQTT_HOST}
+      MQTT_PORT: ${MQTT_PORT}
+      MQTT_USERNAME: ${MQTT_USERNAME}
+      MQTT_PASSWORD: ${MQTT_PASSWORD}
+      WINDOW_SECONDS: ${WINDOW_SECONDS}
+      MOISTURE_THRESHOLD: ${MOISTURE_THRESHOLD}
+      RAIN_SKIP_MM: ${RAIN_SKIP_MM}
+    networks: [agri-iot-compose-k8s-cloud]
+    logging: *default-logging
+
+  # 5) Sensor simulators (capteurs émulés) -------------------------------
+  sensor-simulator:
+    build: ./services/simulator
+    image: agri-iot-compose-k8s-cloud/sensor-simulator:latest   # tag partagé avec les manifests k8s
+    container_name: agri-iot-compose-k8s-cloud-sensors
+    init: true                 # tini : transmission propre de SIGTERM + reaping
+    restart: unless-stopped
+    depends_on:
+      mosquitto:
+        condition: service_started
+    environment:
+      MQTT_HOST: ${MQTT_HOST}
+      MQTT_PORT: ${MQTT_PORT}
+      MQTT_USERNAME: ${MQTT_USERNAME}
+      MQTT_PASSWORD: ${MQTT_PASSWORD}
+      SITE: ${SITE}
+      PARCELS: ${PARCELS}
+      PUBLISH_INTERVAL: ${PUBLISH_INTERVAL}
+      ANOMALY_PROB: ${ANOMALY_PROB}
+    networks: [agri-iot-compose-k8s-cloud]
+    logging: *default-logging
+
+  # 6) API / ML service (recommandations, prévision de rendement) --------
+  api-service:
+    build: ./services/api
+    image: agri-iot-compose-k8s-cloud/api-service:latest   # tag partagé avec les manifests k8s
+    container_name: agri-iot-compose-k8s-cloud-api
+    init: true                 # tini : transmission propre de SIGTERM + reaping
+    restart: unless-stopped
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    ports:
+      - "8000:8000"
+    environment:
+      INFLUX_URL: http://influxdb:8086
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+      INFLUX_ORG: ${INFLUX_ORG}
+      INFLUX_BUCKET: ${INFLUX_BUCKET}
+      MQTT_HOST: ${MQTT_HOST}
+      MQTT_PORT: ${MQTT_PORT}
+      MQTT_USERNAME: ${MQTT_USERNAME}
+      MQTT_PASSWORD: ${MQTT_PASSWORD}
+    networks: [agri-iot-compose-k8s-cloud]
+    logging: *default-logging
+
+  # 7) Grafana (visualisation) -------------------------------------------
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: agri-iot-compose-k8s-cloud-grafana
+    restart: unless-stopped
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      # Autorise un rafraîchissement à 1s (défaut Grafana : bridé à 5s).
+      GF_DASHBOARDS_MIN_REFRESH_INTERVAL: 1s
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+      INFLUX_ORG: ${INFLUX_ORG}
+      INFLUX_BUCKET: ${INFLUX_BUCKET}
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    networks: [agri-iot-compose-k8s-cloud]
+    logging: *default-logging
+
+networks:
+  agri-iot-compose-k8s-cloud:
+    driver: bridge
+
+volumes:
+  mosquitto_data:
+  influxdb_data:
+  grafana_data:

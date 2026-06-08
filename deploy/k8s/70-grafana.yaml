@@ -1,0 +1,72 @@
+# Grafana — visualisation (dashboards temps réel). PVC pour la base interne.
+# Provisioning datasource + dashboard via ConfigMap (voir k8s/README.md).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data
+  namespace: agri-iot-compose-k8s-cloud
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: agri-iot-compose-k8s-cloud
+  labels: { app: grafana-agri-iot-compose-k8s-cloud }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: grafana-agri-iot-compose-k8s-cloud }
+  template:
+    metadata:
+      labels: { app: grafana-agri-iot-compose-k8s-cloud }
+    spec:
+      securityContext:
+        fsGroup: 472            # uid grafana → écriture sur le PVC
+      containers:
+        - name: grafana
+          image: grafana/grafana:11.1.0
+          ports:
+            - { containerPort: 3000, name: http }
+          env:
+            - { name: GF_SECURITY_ADMIN_USER,     valueFrom: { secretKeyRef: { name: agri-iot-compose-k8s-cloud-secret, key: GRAFANA_USER } } }
+            - { name: GF_SECURITY_ADMIN_PASSWORD, valueFrom: { secretKeyRef: { name: agri-iot-compose-k8s-cloud-secret, key: GRAFANA_PASSWORD } } }
+            - { name: INFLUX_TOKEN,  valueFrom: { secretKeyRef:    { name: agri-iot-compose-k8s-cloud-secret, key: INFLUX_TOKEN } } }
+            - { name: INFLUX_ORG,    valueFrom: { configMapKeyRef: { name: agri-iot-compose-k8s-cloud-config, key: INFLUX_ORG } } }
+            - { name: INFLUX_BUCKET, valueFrom: { configMapKeyRef: { name: agri-iot-compose-k8s-cloud-config, key: INFLUX_BUCKET } } }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/grafana }
+            # Provisioning identique à infra/grafana/ (côté compose) : datasource InfluxDB
+            # + dashboard « Supervision des parcelles » chargés au démarrage.
+            - { name: provisioning-datasources, mountPath: /etc/grafana/provisioning/datasources, readOnly: true }
+            - { name: provisioning-dashboards,  mountPath: /etc/grafana/provisioning/dashboards,  readOnly: true }
+          resources:
+            requests: { cpu: "50m",  memory: "128Mi" }
+            limits:   { cpu: "500m", memory: "512Mi" }
+          readinessProbe:
+            httpGet: { path: /api/health, port: 3000 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: grafana-data }
+        - name: provisioning-datasources
+          configMap: { name: grafana-datasources }
+        - name: provisioning-dashboards
+          configMap: { name: grafana-dashboards }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: agri-iot-compose-k8s-cloud
+spec:
+  type: NodePort
+  selector: { app: grafana-agri-iot-compose-k8s-cloud }
+  ports:
+    - { name: http, port: 3000, targetPort: 3000, nodePort: 30300 }

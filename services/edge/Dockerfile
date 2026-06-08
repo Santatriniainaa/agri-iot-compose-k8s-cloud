@@ -1,0 +1,19 @@
+FROM python:3.12-slim
+
+# Image légère et démarrage propre : pas de bytecode, logs non bufferisés,
+# pas de cache pip (réduit la taille de l'image et le bruit de build).
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+COPY edge.py .
+
+# Exécution en utilisateur non privilégié (sécurité : pas de root dans le conteneur).
+RUN useradd --create-home --uid 10001 appuser
+USER appuser
+
+CMD ["python", "edge.py"]

@@ -1,0 +1,63 @@
+# ─── agri-iot-compose-k8s-cloud — fichiers ignorés par git ────────────────────────────────
+
+# Secrets / configuration locale (garder uniquement .env.example)
+.env
+.env.local
+*.env
+!.env.example
+
+# Environnements virtuels Python
+agri-iot-compose-k8s-cloud-env/
+*-env/
+.venv/
+venv/
+env/
+ENV/
+
+# Artefacts pip / build
+.piptmp/
+pip-*.log
+*.egg-info/
+build/
+dist/
+
+# Caches & bytecode Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Modèles ML générés au runtime
+services/api/models/*.pkl
+services/api/__pycache__/
+services/edge/__pycache__/
+services/simulator/__pycache__/
+
+*.pkl
+*.joblib
+
+# Données persistées des conteneurs (volumes montés en bind)
+infra/mosquitto/data/*
+!infra/mosquitto/data/.gitkeep
+influxdb/data/
+grafana/data/
+
+# Logs
+*.log
+_infra_up.log
+_pip.log
+logs/
+
+# Résultats de load-test générés (garder le dossier, pas les CSV)
+scripts/results/*.csv
+scripts/__pycache__/
+
+# Divers OS / éditeurs
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
