@@ -8,10 +8,13 @@ COMPOSE = docker compose -f deploy/docker-compose.yml --project-directory .
 K8S      = deploy/k8s
 CLUSTER  = agri-iot-compose-k8s-cloud
 NS       = agri-iot-compose-k8s-cloud
+NODE     = $(CLUSTER)-control-plane
 IMAGES   = edge-service sensor-simulator api-service
+# Images tierces (broker, base, ingestion, visualisation) — pré-tirées dans le nœud.
+DEPS_IMAGES = eclipse-mosquitto:2 influxdb:2.7 telegraf:1.30 grafana/grafana:11.1.0
 
 .PHONY: help up down build rebuild logs ps demo smoke scale loadtest \
-        k8s-cluster k8s-metrics k8s-load k8s-deploy k8s-up k8s-status k8s-forward k8s-delete k8s-cluster-delete clean
+        k8s-cluster k8s-metrics k8s-load k8s-warmup k8s-deploy k8s-up k8s-status k8s-forward k8s-delete k8s-cluster-delete clean
 
 help:
 	@echo "Cibles disponibles :"
@@ -28,6 +31,7 @@ help:
 	@echo "  make k8s-up      - cluster + metrics-server + build/load images + déploie (tout-en-un)"
 	@echo "  make k8s-cluster - crée le cluster kind (deploy/k8s/kind-config.yaml)"
 	@echo "  make k8s-load    - construit et charge les images locales dans le cluster"
+	@echo "  make k8s-warmup  - pré-tire les images tierces dans le nœud (anti-ImagePullBackOff)"
 	@echo "  make k8s-deploy  - applique les manifests (kubectl apply -k deploy/k8s)"
 	@echo "  make k8s-status  - état des pods / services / HPA du namespace"
 	@echo "  make k8s-forward - expose Grafana (3001) + API (8001) en local (port-forward)"
@@ -93,12 +97,26 @@ k8s-load: build
 		kind load docker-image $(CLUSTER)/$$i:latest --name $(CLUSTER); \
 	done
 
+# Pré-tire les images tierces DANS le nœud kind (containerd), avec retries.
+# Évite les ImagePullBackOff dus à un Docker Hub flaky/rate-limité au moment du
+# `kubectl apply`. NB : `kind load docker-image` est inutilisable ici car le
+# containerd image store de Docker produit des archives incomplètes pour ctr.
+k8s-warmup:
+	@for img in $(DEPS_IMAGES); do \
+		printf "→ pré-pull %s\n" "$$img"; \
+		n=0; until docker exec $(NODE) crictl pull "$$img" >/dev/null 2>&1; do \
+			n=$$((n+1)); \
+			if [ $$n -ge 5 ]; then echo "  ⚠ échec après 5 tentatives — kubelet réessaiera"; break; fi; \
+			echo "  Docker Hub injoignable, retry $$n/5..."; sleep 3; \
+		done; \
+	done
+
 k8s-deploy:
 	kubectl apply -k $(K8S)
 	kubectl -n $(NS) rollout status deploy/api-service --timeout=120s || true
 
-# Tout-en-un : cluster → metrics-server → images → manifests.
-k8s-up: k8s-cluster k8s-metrics k8s-load k8s-deploy
+# Tout-en-un : cluster → metrics-server → images applicatives → images tierces → manifests.
+k8s-up: k8s-cluster k8s-metrics k8s-load k8s-warmup k8s-deploy
 	@echo "\n✅ Stack déployée sur le cluster kind « $(CLUSTER) »."
 	@echo "   • API     : http://localhost:30800/docs"
 	@echo "   • Grafana : http://localhost:30300  (admin / agri-iot-compose-k8s-cloud)"

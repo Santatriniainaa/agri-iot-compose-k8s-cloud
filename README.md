@@ -542,6 +542,7 @@ agri-iot-compose-k8s-cloud/
 | `make k8s-deploy` → `kubectl: No such file or directory` | `kubectl` absent du `PATH` | L'installer (ex. `~/.local/bin`) puis `export PATH="$HOME/.local/bin:$PATH"` |
 | `kubectl` *segfault* / `Segmentation fault` | binaire **tronqué** | Re-télécharger en vérifiant le `sha256sum` ; aligner la version sur le cluster |
 | Pods k8s en `ErrImageNeverPull` | images locales non chargées | `make k8s-load` (build + `kind load`, `imagePullPolicy: IfNotPresent`) |
+| Pods tiers en `ImagePullBackOff` (`EOF` Docker Hub) | pull Docker Hub transitoire / rate-limité | `make k8s-warmup` (pré-pull dans le nœud avec retries) |
 | Pod `mosquitto` `CrashLoopBackOff` — `passwd … File exists` | `mosquitto_passwd -c` refuse d'écraser le passwd persistant | Init idempotent : `rm -f` avant `mosquitto_passwd` (déjà en place) |
 | Pod `mosquitto` `CrashLoopBackOff` — **exit 13** | passwd créé en `root`, illisible par l'utilisateur `mosquitto` | `chown mosquitto:mosquitto` avant `exec mosquitto` (déjà en place) |
 | `telegraf` : `connect: connection refused …:1883` | broker `mosquitto` down | Réparer `mosquitto` d'abord ; telegraf se reconnecte ensuite |

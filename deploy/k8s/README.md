@@ -76,7 +76,10 @@ Cette cible enchaîne, de façon idempotente :
 2. **`make k8s-metrics`** — installe metrics-server (+ patch `--kubelet-insecure-tls`, requis sur kind).
 3. **`make k8s-load`** — `make build` (images taguées `agri-iot-compose-k8s-cloud/<svc>:latest`,
    partagées avec Compose) puis `kind load` des 3 images applicatives (pas de registry requis).
-4. **`make k8s-deploy`** — `kubectl apply -k deploy/k8s/`.
+4. **`make k8s-warmup`** — pré-tire les images tierces (`mosquitto`, `influxdb`, `telegraf`,
+   `grafana`) **dans le nœud** avec retries → évite les `ImagePullBackOff` dus à un Docker Hub
+   flaky/rate-limité au moment du déploiement.
+5. **`make k8s-deploy`** — `kubectl apply -k deploy/k8s/`.
 
 Suivi :
 
@@ -94,12 +97,18 @@ Chaque étape de `make k8s-up` reste disponible séparément :
 ```bash
 make k8s-cluster        # kind create cluster --config deploy/k8s/kind-config.yaml
 make k8s-metrics        # metrics-server + patch kubelet-insecure-tls
-make k8s-load           # make build + kind load des 3 images
+make k8s-load           # make build + kind load des 3 images applicatives
+make k8s-warmup         # pré-pull des images tierces dans le nœud (anti-ImagePullBackOff)
 make k8s-deploy         # kubectl apply -k deploy/k8s
 ```
 
 > **Pourquoi `kind load` ?** `imagePullPolicy: IfNotPresent` + images locales non publiées : sans
 > chargement dans le cluster, les pods tombent en `ErrImageNeverPull`.
+>
+> **Pourquoi `k8s-warmup` (et pas `kind load`) pour les images tierces ?** Le *containerd image
+> store* de Docker produit des archives incomplètes que `ctr import` rejette (`content digest not
+> found`) — `kind load docker-image` est donc inutilisable. On fait plutôt **puller le nœud
+> directement** (`crictl pull`, avec retries) : fiable, et indépendant des couches locales de l'hôte.
 
 ---
 
@@ -178,7 +187,8 @@ make k8s-cluster-delete    # kind delete cluster --name agri-iot-compose-k8s-clo
 
 | Symptôme | Cause | Correctif |
 |----------|-------|-----------|
-| Pods `ErrImageNeverPull` | images non chargées dans le cluster | `make k8s-load` |
+| Pods applicatifs `ErrImageNeverPull` | images locales non chargées | `make k8s-load` |
+| Pods tiers (`mosquitto`/`grafana`/…) `ImagePullBackOff` (`EOF` Docker Hub) | pull Docker Hub flaky/rate-limité | `make k8s-warmup` puis `kubectl -n … delete pod -l app=<svc>-agri-iot-compose-k8s-cloud` (kubelet réessaie aussi seul) |
 | `HPA <unknown>/65%` | metrics-server absent ou non patché | `make k8s-metrics` puis attendre ~1 min |
 | `mosquitto` `CrashLoopBackOff` (exit 13) | `/mosquitto/data` créé en root | `chown` avant `exec mosquitto` (déjà en place) |
 | `telegraf` `connection refused :1883` | broker pas encore prêt | se reconnecte seul ; sinon `kubectl rollout restart deploy/telegraf` |
