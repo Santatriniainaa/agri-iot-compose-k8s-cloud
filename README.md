@@ -412,11 +412,21 @@ une parcelle sans données **404** ; InfluxDB indisponible **503**.
 
 ## 10. Observabilité
 
-- **Grafana provisionné « as code »** : datasources (`InfluxDB` + `InfluxDB-downsampled`) et dashboard
-  injectés au démarrage depuis [`infra/grafana/provisioning/`](infra/grafana/provisioning/) — aucune
-  configuration manuelle.
-- **Dashboard** « agri-iot-compose-k8s-cloud — Supervision des parcelles » : courbes temps réel
-  (humidité, température, pluie, pH), état d'irrigation, panneau anomalies.
+- **Grafana provisionné « as code »** : datasources (`InfluxDB` + `InfluxDB-downsampled`) et dashboards
+  (*Supervision des parcelles* + *agri-api-meteo*) injectés au démarrage depuis
+  [`infra/grafana/provisioning/`](infra/grafana/provisioning/) — aucune configuration manuelle.
+- **Dashboard** « agri-iot-compose-k8s-cloud — Supervision des parcelles » : tableau de bord
+  « production », **filtrable par variables `$site` / `$parcel`** (multi-sélection), organisé en lignes :
+  - *Vue d'ensemble* — bandeau de KPIs (parcelles actives, humidité & pH moyens en jauges,
+    température, irrigation en cours, anomalies 15 min) ;
+  - *Humidité & irrigation* — humidité **moyenne vs minimum** par parcelle (seuils agronomiques),
+    **table de synthèse** par parcelle (dernier état, couleurs) et **chronologie d'irrigation** ;
+  - *Climat parcelle* — température, pluviométrie, pH (zone optimale 6–7), volume d'irrigation ;
+  - *Diagnostic capteurs* — **batterie**, débit/fraîcheur (échantillons), **tendance horaire**
+    sur le bucket downsamplé ;
+  - *Météo* (repliable) — aperçu Open-Meteo + lien vers le dashboard **`agri-api-meteo`**.
+  Courbes soignées (interpolation lissée, gradient, légendes min/moy/max) et **annotations
+  d'anomalies** superposées.
 - **Logs** : sortie structurée de chaque service, rotation conteneur (3 × 10 Mo).
 - **Santé** : `/health` (API), `HEALTHCHECK` Docker, *readiness/liveness probes* Kubernetes.
 
