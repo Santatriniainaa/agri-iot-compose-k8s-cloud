@@ -9,7 +9,7 @@ K8S      = deploy/k8s
 CLUSTER  = agri-iot-compose-k8s-cloud
 NS       = agri-iot-compose-k8s-cloud
 NODE     = $(CLUSTER)-control-plane
-IMAGES   = edge-service sensor-simulator api-service
+IMAGES   = edge-service sensor-simulator api-service weather-service
 # Images tierces (broker, base, ingestion, visualisation) — pré-tirées dans le nœud.
 DEPS_IMAGES = eclipse-mosquitto:2 influxdb:2.7 telegraf:1.30 grafana/grafana:11.1.0
 

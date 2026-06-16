@@ -188,6 +188,28 @@ services:
     networks: [agri-iot-compose-k8s-cloud]
     logging: *default-logging
 
+  # 5b) Weather service (API météo Open-Meteo → MQTT) -------------------
+  weather-service:
+    build: ./services/weather
+    image: agri-iot-compose-k8s-cloud/weather-service:latest   # tag partagé avec les manifests k8s
+    container_name: agri-iot-compose-k8s-cloud-weather
+    init: true                 # tini : transmission propre de SIGTERM + reaping
+    restart: unless-stopped
+    depends_on:
+      mosquitto:
+        condition: service_started
+    environment:
+      MQTT_HOST: ${MQTT_HOST}
+      MQTT_PORT: ${MQTT_PORT}
+      MQTT_USERNAME: ${MQTT_USERNAME}
+      MQTT_PASSWORD: ${MQTT_PASSWORD}
+      SITE: ${SITE}
+      WEATHER_LAT: ${WEATHER_LAT}
+      WEATHER_LON: ${WEATHER_LON}
+      WEATHER_POLL_INTERVAL: ${WEATHER_POLL_INTERVAL}
+    networks: [agri-iot-compose-k8s-cloud]
+    logging: *default-logging
+
   # 6) API / ML service (recommandations, prévision de rendement) --------
   api-service:
     build: ./services/api

@@ -1,0 +1,28 @@
+# weather-service — interroge l'API météo Open-Meteo (sans clé) et republie en
+# MQTT (agri/<site>/meteo). Stateless ; 1 réplica suffit (une position par site).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weather-service
+  namespace: agri-iot-compose-k8s-cloud
+  labels: { app: weather-service-agri-iot-compose-k8s-cloud }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: weather-service-agri-iot-compose-k8s-cloud }
+  template:
+    metadata:
+      labels: { app: weather-service-agri-iot-compose-k8s-cloud }
+    spec:
+      containers:
+        - name: weather-service
+          image: agri-iot-compose-k8s-cloud/weather-service:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef: { name: agri-iot-compose-k8s-cloud-config }
+          env:
+            - { name: MQTT_USERNAME, valueFrom: { secretKeyRef: { name: agri-iot-compose-k8s-cloud-secret, key: MQTT_USERNAME } } }
+            - { name: MQTT_PASSWORD, valueFrom: { secretKeyRef: { name: agri-iot-compose-k8s-cloud-secret, key: MQTT_PASSWORD } } }
+          resources:
+            requests: { cpu: "25m", memory: "64Mi" }
+            limits:   { cpu: "100m", memory: "128Mi" }
