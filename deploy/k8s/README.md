@@ -17,6 +17,7 @@ scalabilité**). Équivalent Kubernetes du [`docker-compose.yml`](../docker-comp
 - [Démarrage tout-en-un](#démarrage-tout-en-un)
 - [Étapes détaillées](#étapes-détaillées)
 - [Accès aux services](#accès-aux-services)
+- [Opérations courantes](#opérations-courantes)
 - [Autoscaling & scalabilité](#autoscaling--scalabilité)
 - [Ressources & probes](#ressources--probes)
 - [Nettoyage](#nettoyage)
@@ -129,17 +130,46 @@ make k8s-forward        # Grafana :3001 · API :8001 (Ctrl+C arrête les deux)
 
 ---
 
+## Opérations courantes
+
+Cibles `make` pour piloter les déploiements sans retenir les commandes `kubectl` (depuis la **racine du
+dépôt**). `S=` cible **un** déploiement ; vide ⇒ **tous**. `make k8s-deploys` liste les noms valides
+(`mosquitto`, `influxdb`, `telegraf`, `edge-service`, `sensor-simulator`, `api-service`, `grafana`).
+
+| Commande | Effet | Équivalent `kubectl` |
+|----------|-------|----------------------|
+| `make k8s-deploys` | Liste les déploiements du namespace | `get deploy` |
+| `make k8s-start [S=deploy] [N=1]` | Scale à `N` (défaut 1) — démarre / scale *out* | `scale deploy/… --replicas=N` |
+| `make k8s-stop [S=deploy]` | Scale à 0 — arrête | `scale deploy/… --replicas=0` |
+| `make k8s-restart [S=deploy]` | Redémarrage progressif (*rolling*, sans coupure) | `rollout restart deploy/…` |
+| `make k8s-logs S=deploy` | Suit les logs d'un déploiement | `logs -f deploy/…` |
+
+```bash
+make k8s-deploys                       # voir les déploiements + leur état (READY)
+make k8s-restart S=edge-service        # rolling restart d'un déploiement
+make k8s-logs S=api-service            # suivre les logs (Ctrl+C pour arrêter)
+make k8s-stop S=grafana                # arrêter grafana ; make k8s-start S=grafana pour relancer
+```
+
+> ⚠️ `make k8s-stop` scale à 0, mais **`edge-service`** et **`api-service`** ont un `HPA`
+> (`minReplicas: 1`) qui les **relance aussitôt**. Pour les figer réellement : supprimer leur HPA ou
+> faire `make k8s-delete`. Les déploiements sans HPA (`grafana`, `telegraf`, `sensor-simulator`,
+> `mosquitto`, `influxdb`) s'arrêtent proprement.
+
+---
+
 ## Autoscaling & scalabilité
 
 | Charge de travail | HPA | Cible | Note |
 |-------------------|-----|-------|------|
 | `edge-service` | **1 → 8** réplicas | CPU 65 % | stateless + *shared subscription* → pas de doublons |
 | `api-service` | **1 → 6** réplicas | CPU 65 % | API REST/ML sans état |
-| `sensor-simulator` | manuel | — | `kubectl scale` (générateur de charge) |
+| `sensor-simulator` | manuel | — | `make k8s-start S=sensor-simulator N=…` (générateur de charge) |
 
 ```bash
-# Générer de la charge : plus de capteurs
-kubectl -n agri-iot-compose-k8s-cloud scale deploy/sensor-simulator --replicas=5
+# Générer de la charge : plus de capteurs (raccourci make ⇄ kubectl)
+make k8s-start S=sensor-simulator N=5
+# équivaut à : kubectl -n agri-iot-compose-k8s-cloud scale deploy/sensor-simulator --replicas=5
 
 # Observer l'autoscaling de l'edge sous charge
 kubectl -n agri-iot-compose-k8s-cloud get hpa -w

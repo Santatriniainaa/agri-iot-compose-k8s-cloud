@@ -168,7 +168,9 @@ services:
   sensor-simulator:
     build: ./services/simulator
     image: agri-iot-compose-k8s-cloud/sensor-simulator:latest   # tag partagé avec les manifests k8s
-    container_name: agri-iot-compose-k8s-cloud-sensors
+    # Pas de container_name : Docker exige un nom unique par conteneur, ce qui
+    # interdirait `--scale sensor-simulator=N` (cf. make scale). Compose nomme
+    # alors les réplicas <projet>-sensor-simulator-1, -2, … automatiquement.
     init: true                 # tini : transmission propre de SIGTERM + reaping
     restart: unless-stopped
     depends_on:

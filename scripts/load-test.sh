@@ -4,7 +4,9 @@
 # de perte (via loadgen.py) et le CPU/RAM du broker et de l'edge (via docker stats).
 # Résultats : tableau Markdown + CSV horodaté dans scripts/results/.
 #
-# Prérequis : stack démarrée (make up), python3 + paho-mqtt.
+# Prérequis : stack démarrée (make up) + Docker. Aucune dépendance Python sur
+# l'hôte : loadgen.py s'exécute DANS l'image sensor-simulator (Python 3.12 +
+# paho-mqtt déjà embarqués), branchée sur le réseau du compose.
 # Usage :
 #   ./scripts/load-test.sh
 #   RATES="50 100 200 400 800" DURATION=20 ./scripts/load-test.sh
@@ -12,26 +14,45 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # Charge les identifiants MQTT depuis .env (le broker exige une authentification).
-# loadgen.py les lit via MQTT_USERNAME / MQTT_PASSWORD.
+# loadgen.py les lit via MQTT_USERNAME / MQTT_PASSWORD (transmis au conteneur).
 if [ -f .env ]; then
   set -a; . ./.env; set +a
 fi
 
-HOST="${MQTT_HOST_LOCAL:-localhost}"
-PORT="${MQTT_PORT_LOCAL:-1883}"
+# loadgen tourne dans le réseau du compose : il joint le broker par son nom de
+# service (mosquitto:1883), pas via le port publié sur l'hôte.
+HOST="${LOADTEST_MQTT_HOST:-mosquitto}"
+PORT="${LOADTEST_MQTT_PORT:-1883}"
 RATES="${RATES:-50 100 200 400 800}"
 DURATION="${DURATION:-15}"
 BROKER_CT="${BROKER_CT:-agri-iot-compose-k8s-cloud-mosquitto}"
 EDGE_CT="${EDGE_CT:-agri-iot-compose-k8s-cloud-edge}"
+# Image embarquant paho-mqtt + réseau du compose (projet_réseau).
+SIM_IMAGE="${SIM_IMAGE:-agri-iot-compose-k8s-cloud/sensor-simulator:latest}"
+NETWORK="${LOADTEST_NETWORK:-agri-iot-compose-k8s-cloud_agri-iot-compose-k8s-cloud}"
+
+# Exécute loadgen.py dans un conteneur jetable (monté en lecture seule) sur le
+# réseau du compose. Les identifiants MQTT sont transmis depuis l'environnement.
+run_loadgen() {  # "$@" -> arguments de loadgen.py
+  docker run --rm --network "$NETWORK" \
+    -e MQTT_USERNAME -e MQTT_PASSWORD \
+    -v "$PWD/scripts/loadgen.py:/loadgen.py:ro" \
+    "$SIM_IMAGE" python /loadgen.py "$@"
+}
 
 mkdir -p scripts/results
 STAMP="$(date +%Y%m%d-%H%M%S 2>/dev/null || echo run)"
 CSV="scripts/results/loadtest-$STAMP.csv"
 echo "rate_target,throughput_msg_s,loss_pct,latency_p50_ms,latency_p95_ms,latency_max_ms,broker_cpu_pct,broker_mem_mb,edge_cpu_pct,edge_mem_mb" > "$CSV"
 
-# Vérifs préalables
-command -v python3 >/dev/null || { echo "❌ python3 requis"; exit 1; }
-python3 -c "import paho.mqtt.client" 2>/dev/null || { echo "❌ pip install paho-mqtt"; exit 1; }
+# Vérifs préalables : Docker, image simulateur et réseau du compose présents.
+command -v docker >/dev/null || { echo "❌ docker requis"; exit 1; }
+docker image inspect "$SIM_IMAGE" >/dev/null 2>&1 \
+  || { echo "❌ image $SIM_IMAGE absente — lance d'abord 'make up'"; exit 1; }
+docker network inspect "$NETWORK" >/dev/null 2>&1 \
+  || { echo "❌ réseau $NETWORK absent — lance d'abord 'make up'"; exit 1; }
+# Le post-traitement JSON utilise la lib standard de python3 (présent sur l'hôte).
+command -v python3 >/dev/null || { echo "❌ python3 requis (post-traitement JSON)"; exit 1; }
 
 # Échantillonne CPU%/MEM(MiB) d'un conteneur via docker stats (non bloquant).
 sample_stats() {  # $1 = nom conteneur -> "cpu mem_mb" ; "NA NA" si indisponible
@@ -58,7 +79,7 @@ for rate in $RATES; do
   ( sleep $((DURATION/2)); sample_stats "$BROKER_CT" > /tmp/_lt_broker; sample_stats "$EDGE_CT" > /tmp/_lt_edge ) &
   STATS_PID=$!
 
-  RES=$(python3 scripts/loadgen.py --host "$HOST" --port "$PORT" --rate "$rate" --duration "$DURATION")
+  RES=$(run_loadgen --host "$HOST" --port "$PORT" --rate "$rate" --duration "$DURATION")
   wait $STATS_PID 2>/dev/null || true
 
   read -r BCPU BMEM < /tmp/_lt_broker 2>/dev/null || { BCPU=NA; BMEM=NA; }

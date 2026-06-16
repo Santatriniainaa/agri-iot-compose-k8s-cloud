@@ -13,16 +13,21 @@ IMAGES   = edge-service sensor-simulator api-service
 # Images tierces (broker, base, ingestion, visualisation) — pré-tirées dans le nœud.
 DEPS_IMAGES = eclipse-mosquitto:2 influxdb:2.7 telegraf:1.30 grafana/grafana:11.1.0
 
-.PHONY: help up down build rebuild logs ps demo smoke scale loadtest \
-        k8s-cluster k8s-metrics k8s-load k8s-warmup k8s-deploy k8s-up k8s-status k8s-forward k8s-delete k8s-cluster-delete clean
+.PHONY: help up down build rebuild start stop restart logs ps services demo smoke scale loadtest \
+        k8s-cluster k8s-metrics k8s-load k8s-warmup k8s-deploy k8s-up k8s-status k8s-deploys k8s-forward \
+        k8s-start k8s-stop k8s-restart k8s-logs k8s-delete k8s-cluster-delete clean
 
 help:
 	@echo "Cibles disponibles :"
 	@echo "  make up       - construit et démarre toute la plateforme"
 	@echo "  make down     - arrête la plateforme"
 	@echo "  make build    - (re)construit les images"
-	@echo "  make logs     - suit les logs de l'edge-service"
 	@echo "  make ps       - état des conteneurs"
+	@echo "  make services - liste les services compose (valeurs valides pour S=)"
+	@echo "  make start [S=svc]   - démarre un service (ou tous si S vide)"
+	@echo "  make stop  [S=svc]   - arrête un service (ou tous si S vide)"
+	@echo "  make restart [S=svc] - redémarre un service (ou tous si S vide)"
+	@echo "  make logs  [S=svc]   - suit les logs d'un service (défaut: edge-service)"
 	@echo "  make demo     - interroge l'API (parcelles, recommandation, alertes)"
 	@echo "  make smoke    - test de bout en bout automatisé"
 	@echo "  make scale N=5- réplique les sensor-simulators (scaling horizontal)"
@@ -34,6 +39,11 @@ help:
 	@echo "  make k8s-warmup  - pré-tire les images tierces dans le nœud (anti-ImagePullBackOff)"
 	@echo "  make k8s-deploy  - applique les manifests (kubectl apply -k deploy/k8s)"
 	@echo "  make k8s-status  - état des pods / services / HPA du namespace"
+	@echo "  make k8s-deploys - liste les déploiements (valeurs valides pour S=)"
+	@echo "  make k8s-start [S=deploy] [N=1] - scale à N (déf.1) un déploiement (ou tous)"
+	@echo "  make k8s-stop  [S=deploy]       - scale à 0 (ou tous) — edge/api: HPA min=1 relance"
+	@echo "  make k8s-restart [S=deploy]     - rollout restart (ou tous)"
+	@echo "  make k8s-logs S=deploy          - suit les logs d'un déploiement"
 	@echo "  make k8s-forward - expose Grafana (3001) + API (8001) en local (port-forward)"
 	@echo "  make k8s-delete  - supprime les ressources (garde le cluster)"
 	@echo "  make k8s-cluster-delete - supprime le cluster kind"
@@ -56,11 +66,30 @@ build:
 rebuild:
 	$(COMPOSE) build --no-cache
 
+# ─── Cycle de vie par service (compose) ────────────────────────────────────
+# S sélectionne UN service ; S vide ⇒ tous les services. Les conteneurs doivent
+# déjà exister (créés par `make up`). Ex. : make stop S=grafana · make restart
+start:
+	$(COMPOSE) start $(S)
+
+stop:
+	$(COMPOSE) stop $(S)
+
+restart:
+	$(COMPOSE) restart $(S)
+
+# Logs d'un service (suivi). S vide ⇒ edge-service par défaut.
+# Ex. : make logs S=api-service · make logs S=mosquitto
 logs:
-	$(COMPOSE) logs -f edge-service
+	$(COMPOSE) logs -f --tail=100 $(if $(S),$(S),edge-service)
 
 ps:
 	$(COMPOSE) ps
+
+# Liste les services définis dans le compose — valeurs valides pour S=
+# (start / stop / restart / logs). Fonctionne stack arrêtée comme démarrée.
+services:
+	@$(COMPOSE) config --services | sort
 
 demo:
 	@echo "→ Parcelles :"      && curl -s http://localhost:8000/api/parcels        | python3 -m json.tool || true
@@ -126,6 +155,50 @@ k8s-status:
 	@kubectl -n $(NS) get pods -o wide
 	@kubectl -n $(NS) get svc
 	@kubectl -n $(NS) get hpa
+
+# Liste les déploiements du namespace — valeurs valides pour S=
+# (k8s-start / k8s-stop / k8s-restart / k8s-logs).
+k8s-deploys:
+	@kubectl -n $(NS) get deploy
+
+# ─── Cycle de vie par déploiement (k8s) ─────────────────────────────────────
+# S sélectionne UN déploiement ; S vide ⇒ tous (--all). Déploiements valides :
+# mosquitto influxdb telegraf edge-service sensor-simulator api-service grafana
+
+# Démarre/relance : scale à N réplicas (défaut 1). Ex. : make k8s-start S=sensor-simulator N=4
+k8s-start:
+	@if [ -n "$(S)" ]; then \
+		kubectl -n $(NS) scale deploy/$(S) --replicas=$(if $(N),$(N),1); \
+	else \
+		kubectl -n $(NS) scale deploy --all --replicas=$(if $(N),$(N),1); \
+	fi
+	@kubectl -n $(NS) get deploy
+
+# Arrête : scale à 0. NB : edge-service et api-service ont un HPA (min=1) qui les
+# relance ; pour les figer réellement, supprimer leur HPA ou faire `make k8s-delete`.
+k8s-stop:
+	@if [ -n "$(S)" ]; then \
+		kubectl -n $(NS) scale deploy/$(S) --replicas=0; \
+	else \
+		kubectl -n $(NS) scale deploy --all --replicas=0; \
+	fi
+	@echo "ℹ HPA (edge-service, api-service, min=1) : ces déploiements se relancent."
+	@kubectl -n $(NS) get deploy
+
+# Redémarrage progressif (rolling) sans coupure. S vide ⇒ tous les déploiements.
+k8s-restart:
+	@if [ -n "$(S)" ]; then \
+		kubectl -n $(NS) rollout restart deploy/$(S); \
+		kubectl -n $(NS) rollout status deploy/$(S) --timeout=120s; \
+	else \
+		kubectl -n $(NS) rollout restart deploy; \
+		echo "→ rollout restart lancé sur tous les déploiements"; \
+	fi
+
+# Logs d'un déploiement (suivi). S requis. Ex. : make k8s-logs S=api-service
+k8s-logs:
+	@test -n "$(S)" || { echo "Usage : make k8s-logs S=<edge-service|api-service|sensor-simulator|telegraf|mosquitto|influxdb|grafana>"; exit 2; }
+	kubectl -n $(NS) logs -f --tail=100 deploy/$(S)
 
 # Expose Grafana + API du cluster en local (port-forward). Ports décalés (3001 / 8001)
 # pour éviter le conflit avec la stack docker-compose (3000 / 8000). Ctrl+C arrête tout.

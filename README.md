@@ -35,27 +35,78 @@ aussi bien en **Docker Compose** (développement) qu'en **Kubernetes** (orchestr
 
 ## 📑 Sommaire
 
-1. [Architecture](#1-architecture)
-2. [Stack technique](#2-stack-technique)
-3. [Démarrage rapide](#3-démarrage-rapide)
-4. [Configuration (`.env`)](#4-configuration-env)
-5. [Les services en détail](#5-les-services-en-détail)
-6. [Modèle de données](#6-modèle-de-données)
-7. [API REST](#7-api-rest)
-8. [Couche Machine Learning](#8-couche-machine-learning)
-9. [Observabilité](#9-observabilité)
-10. [Commandes `make`](#10-commandes-make)
-11. [Scalabilité & résilience](#11-scalabilité--résilience)
-12. [Déploiement Kubernetes](#12-déploiement-kubernetes)
-13. [Sécurité](#13-sécurité)
-14. [Arborescence](#14-arborescence)
-15. [Dépannage](#15-dépannage)
+1. [Prérequis](#1-prérequis)
+2. [Démarrage rapide](#2-démarrage-rapide)
+3. [Architecture](#3-architecture)
+4. [Stack technique](#4-stack-technique)
+5. [Configuration (`.env`)](#5-configuration-env)
+6. [Les services en détail](#6-les-services-en-détail)
+7. [Modèle de données](#7-modèle-de-données)
+8. [API REST](#8-api-rest)
+9. [Couche Machine Learning](#9-couche-machine-learning)
+10. [Observabilité](#10-observabilité)
+11. [Commandes `make`](#11-commandes-make)
+12. [Scalabilité & résilience](#12-scalabilité--résilience)
+13. [Déploiement Kubernetes](#13-déploiement-kubernetes)
+14. [Sécurité](#14-sécurité)
+15. [Arborescence](#15-arborescence)
 16. [Feuille de route](#16-feuille-de-route-vers-la-production)
 17. [Licence](#17-licence)
 
 ---
 
-## 1. Architecture
+## 1. Prérequis
+
+| Mode | Outils requis |
+|------|---------------|
+| **Docker Compose** (dev / démo) | Docker Engine ≥ 20.10 · Docker Compose v2 · GNU Make |
+| **Kubernetes** (orchestration) | les outils ci-dessus **+** `kubectl` ≥ 1.27 · `kind` (ou minikube / k3d) · metrics-server (installé par `make k8s-metrics`) |
+| **Optionnel** | `curl` + Python 3 pour `make demo` ; le `make loadtest` s'exécute **en conteneur** — aucune dépendance Python (ni `paho-mqtt`) à installer sur l'hôte |
+
+> Toutes les commandes `make` s'utilisent **depuis la racine du dépôt**. Le détail du mode Kubernetes
+> (cluster kind, HPA, probes, PVC) est documenté dans [`deploy/k8s/README.md`](deploy/k8s/README.md).
+
+---
+
+## 2. Démarrage rapide
+
+Depuis un poste disposant de Docker (cf. [§1 Prérequis](#1-prérequis)) :
+
+```bash
+git clone git@github.com:Santatriniainaa/agri-iot-compose-k8s-cloud.git
+cd agri-iot-compose-k8s-cloud
+cp .env.example .env          # ajuste les paramètres si besoin
+make up                       # build + démarrage de la stack
+```
+
+> Le fichier compose est sous `deploy/` ; `make` l'invoque avec `--project-directory .` pour garder
+> les chemins `./services` et `./infra` relatifs à la racine.
+> Équivalent direct : `docker compose -f deploy/docker-compose.yml --project-directory . up -d --build`.
+
+Patienter ~30–60 s (build + initialisation d'InfluxDB et entraînement du modèle ML), puis :
+
+| Service | URL | Identifiants |
+|---------|-----|--------------|
+| API (Swagger) | http://localhost:8000/docs | — |
+| Grafana | http://localhost:3000 | `admin` / `${GRAFANA_PASSWORD}` |
+| InfluxDB | http://localhost:8086 | `admin` / `${INFLUX_PASSWORD}` |
+
+Le dashboard **« agri-iot-compose-k8s-cloud — Supervision des parcelles »** est déjà provisionné dans Grafana.
+
+### Vérifier que tout fonctionne
+
+```bash
+make smoke      # test de bout en bout automatisé (5 étapes)
+# … ou manuellement :
+curl http://localhost:8000/health
+curl http://localhost:8000/api/parcels
+curl http://localhost:8000/api/recommend/zoneA
+curl http://localhost:8000/api/predict/yield/zoneA
+```
+
+---
+
+## 3. Architecture
 
 ![Architecture agri-iot-compose-k8s-cloud — capteurs → edge → MQTT → InfluxDB → Grafana / API](assets/architecture.svg)
 
@@ -95,7 +146,7 @@ aussi bien en **Docker Compose** (développement) qu'en **Kubernetes** (orchestr
 
 </details>
 
-### 1.1 Pipeline de données
+### 3.1 Pipeline de données
 
 | Étape | Mécanisme | Détail |
 |-------|-----------|--------|
@@ -106,7 +157,7 @@ aussi bien en **Docker Compose** (développement) qu'en **Kubernetes** (orchestr
 | **Stockage** | `influxdb` *time-series* | bucket `telemetry` (30 j) + downsampling horaire → `telemetry_downsampled` (90 j) |
 | **Restitution** | `grafana` (dashboards) · `api-service` (REST/ML) | requêtes Flux ; l'API souscrit aussi aux `…/alerts` |
 
-### 1.2 Inventaire des services
+### 3.2 Inventaire des services
 
 | # | Service | Image / langage | Port | Rôle |
 |---|---------|-----------------|------|------|
@@ -121,7 +172,7 @@ aussi bien en **Docker Compose** (développement) qu'en **Kubernetes** (orchestr
 > Un service one-shot **`influx-init`** (image `influxdb:2.7`) s'exécute une fois après qu'InfluxDB
 > est sain pour créer — de façon idempotente — le bucket downsamplé et la *task* Flux d'agrégation.
 
-### 1.3 Couches d'infrastructure
+### 3.3 Couches d'infrastructure
 
 | Couche | Rôle | Composants |
 |--------|------|------------|
@@ -131,7 +182,7 @@ aussi bien en **Docker Compose** (développement) qu'en **Kubernetes** (orchestr
 | **Stockage & ingestion** | persistance *time-series* + rétention/downsampling | `telegraf` → `influxdb` |
 | **Restitution** | dashboards temps réel + API REST/ML | `grafana`, `api-service` |
 
-### 1.4 Modes de déploiement
+### 3.4 Modes de déploiement
 
 | | **Docker Compose** (dev) | **Kubernetes** (orchestration) |
 |---|--------------------------|--------------------------------|
@@ -148,7 +199,7 @@ aussi bien en **Docker Compose** (développement) qu'en **Kubernetes** (orchestr
 
 ---
 
-## 2. Stack technique
+## 4. Stack technique
 
 | Domaine | Technologie | Version | Justification |
 |---------|-------------|---------|---------------|
@@ -165,46 +216,7 @@ aussi bien en **Docker Compose** (développement) qu'en **Kubernetes** (orchestr
 
 ---
 
-## 3. Démarrage rapide
-
-**Prérequis (mode Compose)** : Docker Engine ≥ 20.10, Docker Compose v2, GNU Make. Python 3 + `curl`
-uniquement pour `make demo` / `make loadtest`.
-
-```bash
-git clone git@github.com:Santatriniainaa/agri-iot-compose-k8s-cloud.git
-cd agri-iot-compose-k8s-cloud
-cp .env.example .env          # ajuste les paramètres si besoin
-make up                       # build + démarrage de la stack
-```
-
-> Le fichier compose est sous `deploy/` ; `make` l'invoque avec `--project-directory .` pour garder
-> les chemins `./services` et `./infra` relatifs à la racine.
-> Équivalent direct : `docker compose -f deploy/docker-compose.yml --project-directory . up -d --build`.
-
-Patienter ~30–60 s (build + initialisation d'InfluxDB et entraînement du modèle ML), puis :
-
-| Service | URL | Identifiants |
-|---------|-----|--------------|
-| API (Swagger) | http://localhost:8000/docs | — |
-| Grafana | http://localhost:3000 | `admin` / `${GRAFANA_PASSWORD}` |
-| InfluxDB | http://localhost:8086 | `admin` / `${INFLUX_PASSWORD}` |
-
-Le dashboard **« agri-iot-compose-k8s-cloud — Supervision des parcelles »** est déjà provisionné dans Grafana.
-
-### Vérifier que tout fonctionne
-
-```bash
-make smoke      # test de bout en bout automatisé (5 étapes)
-# … ou manuellement :
-curl http://localhost:8000/health
-curl http://localhost:8000/api/parcels
-curl http://localhost:8000/api/recommend/zoneA
-curl http://localhost:8000/api/predict/yield/zoneA
-```
-
----
-
-## 4. Configuration (`.env`)
+## 5. Configuration (`.env`)
 
 Toute la configuration passe par variables d'environnement (cf. [`.env.example`](.env.example)).
 En Kubernetes, les mêmes clés sont portées par un `ConfigMap` (non sensible) et un `Secret`.
@@ -230,9 +242,9 @@ En Kubernetes, les mêmes clés sont portées par un `ConfigMap` (non sensible) 
 
 ---
 
-## 5. Les services en détail
+## 6. Les services en détail
 
-### 5.1 `sensor-simulator` — émulation des capteurs
+### 6.1 `sensor-simulator` — émulation des capteurs
 
 Génère des séries **réalistes** via un modèle agronomique simplifié, état mémorisé par parcelle :
 
@@ -247,7 +259,7 @@ Génère des séries **réalistes** via un modèle agronomique simplifié, état
 Stateless → on **réplique le conteneur** pour simuler plus de capteurs. Publie sur
 `agri/<site>/<parcel>/raw/<type>` en QoS 1.
 
-### 5.2 `edge-service` — *edge computing* logiciel
+### 6.2 `edge-service` — *edge computing* logiciel
 
 Cœur du traitement temps réel, **sans état durable** (cache mémoire uniquement) donc réplicable :
 
@@ -271,23 +283,23 @@ Cœur du traitement temps réel, **sans état durable** (cache mémoire uniqueme
 
 Publie `…/processed` (→ Telegraf) et `…/alerts` (→ api-service).
 
-### 5.3 `mosquitto` — broker MQTT
+### 6.3 `mosquitto` — broker MQTT
 
 Listeners `1883` (MQTT) et `9001` (WebSocket). **`allow_anonymous false`** : un `password_file` hashé
 est généré au démarrage depuis `MQTT_USERNAME`/`MQTT_PASSWORD` (régénération idempotente). Persistance activée.
 
-### 5.4 `telegraf` — ingestion
+### 6.4 `telegraf` — ingestion
 
 Deux entrées `mqtt_consumer` en **shared subscription** (répartissables) :
 `…/processed` → mesure `agri_processed`, `…/raw/+` → mesure `agri_raw`. Sortie `influxdb_v2`.
 
-### 5.5 `influxdb` (+ `influx-init`) — stockage *time-series*
+### 6.5 `influxdb` (+ `influx-init`) — stockage *time-series*
 
 Initialisé en mode `setup` (org, bucket, token, rétention). Le job one-shot **`influx-init`** crée le
 bucket `telemetry_downsampled` et une **task Flux** `downsample_agri_processed_1h` (moyennes horaires) —
 idempotents.
 
-### 5.6 `api-service` — API REST + ML
+### 6.6 `api-service` — API REST + ML
 
 FastAPI + Uvicorn. Au démarrage (`entrypoint.sh`) : entraîne le modèle ML s'il est absent, puis sert
 l'API. Un **thread d'arrière-plan** souscrit aux `agri/+/+/alerts` et garde les 200 dernières en mémoire.
@@ -295,9 +307,9 @@ Conteneur non-root, `HEALTHCHECK` intégré.
 
 ---
 
-## 6. Modèle de données
+## 7. Modèle de données
 
-### 6.1 Topics MQTT
+### 7.1 Topics MQTT
 
 ```
 agri/<site>/<parcel>/raw/<type>     # mesures brutes (simulateur → edge, telegraf)
@@ -305,7 +317,7 @@ agri/<site>/<parcel>/processed      # mesures agrégées + décision (edge → t
 agri/<site>/<parcel>/alerts         # alertes / recommandations (edge → api-service)
 ```
 
-### 6.2 Messages
+### 7.2 Messages
 
 <details>
 <summary><strong>Message brut</strong> (<code>…/raw/soil_moisture</code>)</summary>
@@ -340,7 +352,7 @@ agri/<site>/<parcel>/alerts         # alertes / recommandations (edge → api-se
 ```
 </details>
 
-### 6.3 Schéma InfluxDB
+### 7.3 Schéma InfluxDB
 
 | Measurement | Tags | Champs principaux |
 |-------------|------|-------------------|
@@ -349,7 +361,7 @@ agri/<site>/<parcel>/alerts         # alertes / recommandations (edge → api-se
 
 ---
 
-## 7. API REST
+## 8. API REST
 
 Base : `http://localhost:8000` · Documentation interactive : **`/docs`** (Swagger) et `/redoc`.
 
@@ -381,7 +393,7 @@ une parcelle sans données **404** ; InfluxDB indisponible **503**.
 
 ---
 
-## 8. Couche Machine Learning
+## 9. Couche Machine Learning
 
 - **Tâche** : régression d'un *yield index* (0–1) à partir de `[soil_moisture_avg, temperature_avg,
   rainfall_sum, soil_ph_avg]`.
@@ -396,7 +408,7 @@ une parcelle sans données **404** ; InfluxDB indisponible **503**.
 
 ---
 
-## 9. Observabilité
+## 10. Observabilité
 
 - **Grafana provisionné « as code »** : datasources (`InfluxDB` + `InfluxDB-downsampled`) et dashboard
   injectés au démarrage depuis [`infra/grafana/provisioning/`](infra/grafana/provisioning/) — aucune
@@ -421,33 +433,50 @@ $COMPOSE exec -T mosquitto mosquitto_sub -t 'agri/#' -u "$MQTT_USERNAME" -P "$MQ
 
 ---
 
-## 10. Commandes `make`
+## 11. Commandes `make`
+
+Toutes les cibles s'utilisent **depuis la racine du dépôt**. Le paramètre **`S=`** cible un
+service/déploiement précis (vide ⇒ **tous**) ; **`make services`** et **`make k8s-deploys`** listent les
+valeurs valides.
+
+### Docker Compose
 
 | Commande | Effet |
 |----------|-------|
 | `make up` | Build + démarre toute la plateforme |
 | `make down` | Arrête les conteneurs (données conservées) |
 | `make build` / `make rebuild` | (Re)construit les images (`rebuild` = `--no-cache`) |
-| `make logs` | Suit les logs de l'edge-service |
 | `make ps` | État des conteneurs |
+| `make services` | **Liste les services** (valeurs valides pour `S=`) |
+| `make start` / `stop` / `restart` `[S=svc]` | Démarre / arrête / redémarre un service (ou **tous** si `S` vide) |
+| `make logs [S=svc]` | Suit les logs d'un service (défaut : `edge-service`) |
 | `make demo` | Interroge l'API (parcelles, recommandation, alertes) |
 | `make smoke` | Test de bout en bout automatisé |
 | `make scale N=5` | Réplique les `sensor-simulator` (scaling horizontal) |
-| `make loadtest` | Load test chiffré (débit / latence / pertes / CPU-RAM) |
+| `make loadtest` | Load test chiffré, **exécuté en conteneur** (débit / latence / pertes / CPU-RAM) |
 | `make clean` | Arrête tout **et supprime les volumes** (données effacées) |
-| **`make k8s-up`** | **Cluster kind + metrics-server + build/load images + déploiement (tout-en-un)** |
+
+### Kubernetes
+
+| Commande | Effet |
+|----------|-------|
+| **`make k8s-up`** | **Cluster kind + metrics-server + build/load images + warmup + déploiement (tout-en-un)** |
 | `make k8s-cluster` / `k8s-cluster-delete` | Crée / supprime le cluster kind |
 | `make k8s-metrics` | Installe metrics-server (requis par les HPA) |
 | `make k8s-load` | Build + `kind load` des images applicatives |
+| `make k8s-warmup` | Pré-tire les images tierces dans le nœud (anti-`ImagePullBackOff`) |
 | `make k8s-deploy` / `k8s-delete` | Applique / supprime les manifests (`kubectl -k`) |
 | `make k8s-status` | Pods (`-o wide`) + services + HPA |
+| `make k8s-deploys` | **Liste les déploiements** (valeurs valides pour `S=`) |
+| `make k8s-start [S=deploy] [N=1]` | Scale à `N` (défaut 1) un déploiement (ou **tous**) |
+| `make k8s-stop [S=deploy]` | Scale à 0 (ou **tous**) — `edge`/`api` : HPA `min=1` relance |
+| `make k8s-restart [S=deploy]` | `rollout restart` (ou **tous**) |
+| `make k8s-logs S=deploy` | Suit les logs d'un déploiement |
 | `make k8s-forward` | Expose Grafana (`:3001`) + API (`:8001`) via *port-forward* |
-
-> Toutes les cibles s'utilisent **depuis la racine du dépôt**.
 
 ---
 
-## 11. Scalabilité & résilience
+## 12. Scalabilité & résilience
 
 | Propriété | Mécanisme |
 |-----------|-----------|
@@ -464,11 +493,13 @@ make loadtest           # paliers de débit → tableau Markdown + CSV dans scri
 ```
 
 Le **load test** (`scripts/load-test.sh`) monte en charge par paliers et mesure, par palier : débit
-traité, latence p50/p95/max, taux de perte, et CPU/RAM du broker et de l'edge.
+traité, latence p50/p95/max, taux de perte, et CPU/RAM du broker et de l'edge. Le générateur de charge
+(`loadgen.py`) s'exécute **dans l'image `sensor-simulator`** (paho-mqtt déjà embarqué), branchée sur le
+réseau du compose — donc **aucune dépendance Python à installer sur l'hôte**.
 
 ---
 
-## 12. Déploiement Kubernetes
+## 13. Déploiement Kubernetes
 
 Équivalent Kubernetes complet du `docker-compose.yml`, avec en plus **HPA**, **probes**,
 **requests/limits**, **ConfigMap/Secret** et **PVC**. Détails : **[`deploy/k8s/README.md`](deploy/k8s/README.md)**.
@@ -493,7 +524,7 @@ make k8s-cluster-delete    # supprime le cluster kind
 
 ---
 
-## 13. Sécurité
+## 14. Sécurité
 
 **Déjà en place** : authentification MQTT (login/mot de passe, `allow_anonymous false`), conteneurs
 **non-root** (uid 10001), validation stricte des entrées API (anti-injection Flux), arrêt propre
@@ -505,7 +536,7 @@ make k8s-cluster-delete    # supprime le cluster kind
 
 ---
 
-## 14. Arborescence
+## 15. Arborescence
 
 ```
 agri-iot-compose-k8s-cloud/
@@ -534,26 +565,6 @@ agri-iot-compose-k8s-cloud/
 │
 └── assets/                     # diagramme d'architecture
 ```
-
----
-
-## 15. Dépannage
-
-| Symptôme | Cause | Correctif |
-|----------|-------|-----------|
-| `make k8s-deploy` → `kubectl: No such file or directory` | `kubectl` absent du `PATH` | L'installer (ex. `~/.local/bin`) puis `export PATH="$HOME/.local/bin:$PATH"` |
-| `kubectl` *segfault* / `Segmentation fault` | binaire **tronqué** | Re-télécharger en vérifiant le `sha256sum` ; aligner la version sur le cluster |
-| Pods k8s en `ErrImageNeverPull` | images locales non chargées | `make k8s-load` (build + `kind load`, `imagePullPolicy: IfNotPresent`) |
-| Pods tiers en `ImagePullBackOff` (`EOF` Docker Hub) | pull Docker Hub transitoire / rate-limité | `make k8s-warmup` (pré-pull dans le nœud avec retries) |
-| Pod `mosquitto` `CrashLoopBackOff` — `passwd … File exists` | `mosquitto_passwd -c` refuse d'écraser le passwd persistant | Init idempotent : `rm -f` avant `mosquitto_passwd` (déjà en place) |
-| Pod `mosquitto` `CrashLoopBackOff` — **exit 13** | passwd créé en `root`, illisible par l'utilisateur `mosquitto` | `chown mosquitto:mosquitto` avant `exec mosquitto` (déjà en place) |
-| `telegraf` : `connect: connection refused …:1883` | broker `mosquitto` down | Réparer `mosquitto` d'abord ; telegraf se reconnecte ensuite |
-| `edge` en boucle « broker indisponible » | conteneur `mosquitto` arrêté | Vérifier `make ps` / `$COMPOSE ps -a` |
-| `mosquitto` **Exited (127)** après déplacement du projet | bind-mount absolu figé à la création | `$COMPOSE up -d --force-recreate mosquitto` ; ou `make down && make up` |
-| Aucune parcelle dans `/api/parcels` | pas encore de données ou edge/telegraf KO | Patienter ; sinon `$COMPOSE logs edge-service telegraf` |
-
-> Diagnostic : `$COMPOSE ps -a` (conteneurs arrêtés inclus) et
-> `docker inspect <conteneur> --format '{{.State.ExitCode}} {{.State.Error}}'` donnent la cause exacte.
 
 ---
 
