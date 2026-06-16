@@ -1,7 +1,12 @@
-# Contexte de build minimal — n'envoyer au démon Docker que le nécessaire.
+# Contexte de build minimal — n'envoyer au démon Docker que le strict nécessaire.
+
+# Bytecode / caches Python
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # Environnements virtuels
 *-env/
@@ -9,10 +14,20 @@ __pycache__/
 venv/
 env/
 
-# Caches outils / logs / divers
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
+# Tests & couverture
+tests/
+.coverage
+coverage/
+htmlcov/
+
+# Métadonnées de build / dépôt
+Dockerfile
+.dockerignore
+.git
+.gitignore
+*.md
+
+# Logs / secrets / divers
 *.log
 .env
 .DS_Store

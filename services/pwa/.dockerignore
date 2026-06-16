@@ -1,11 +1,31 @@
-# Contexte de build minimal — ne pas envoyer les artefacts locaux au démon Docker.
+# Contexte de build minimal — ne pas envoyer les artefacts lourds/locaux au démon
+# Docker (node_modules + dist pèsent des centaines de Mo → build bien plus rapide).
+# NB : nginx/ et entrypoint.sh DOIVENT rester (copiés par l'étape runtime).
+
+# Dépendances et sorties de build (régénérées par npm ci / ng build dans l'image)
 node_modules
 dist
 .angular
 out-tsc
+*.tsbuildinfo
 
-# Logs / divers
+# Tests & couverture
+coverage
+.nyc_output
+
+# Métadonnées de build / dépôt
+Dockerfile
+.dockerignore
+.git
+.gitignore
+*.md
+
+# Éditeurs / environnement / logs / divers
+.vscode
+.idea
+.editorconfig
+.env
 *.log
 npm-debug.log*
+yarn-error.log*
 .DS_Store
-.git

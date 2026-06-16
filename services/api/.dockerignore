@@ -1,7 +1,13 @@
-# Contexte de build minimal — n'envoyer au démon Docker que le nécessaire.
+# Contexte de build minimal — n'envoyer au démon Docker que le strict nécessaire
+# (build plus rapide, image plus légère). Le Dockerfile copie explicitement le code.
+
+# Bytecode / caches Python
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # Environnements virtuels (ne jamais copier dans l'image)
 *-env/
@@ -9,17 +15,26 @@ __pycache__/
 venv/
 env/
 
+# Tests & dépendances de dev (hors image runtime)
+tests/
+requirements-dev.txt
+.coverage
+coverage/
+htmlcov/
+
 # Modèles ML : (re)générés au démarrage par entrypoint.sh
 models/
 *.pkl
 *.joblib
 
-# Caches outils
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
+# Métadonnées de build / dépôt (inutiles dans le contexte)
+Dockerfile
+.dockerignore
+.git
+.gitignore
+*.md
 
-# Logs / divers
+# Logs / secrets / divers
 *.log
 .env
 .DS_Store
