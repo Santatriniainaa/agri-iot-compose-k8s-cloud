@@ -1,15 +1,27 @@
 import { Routes } from '@angular/router';
 
+import { authGuard } from './core/guards/auth.guard';
+
 /**
- * Routes de l'application (lazy-loading par fonctionnalité).
- * Les écrans métier (login, dashboard, détail, alertes) sont ajoutés en Phase 4 ;
- * le scaffold pointe pour l'instant sur un écran d'accueil placeholder.
+ * Routes de l'application (standalone, lazy-loading par fonctionnalité).
+ * `/login` est public ; la coquille authentifiée est protégée par `authGuard`.
  */
 export const routes: Routes = [
   {
+    path: 'login',
+    loadComponent: () => import('./features/auth/login.component').then((m) => m.LoginComponent),
+  },
+  {
     path: '',
-    loadComponent: () =>
-      import('./features/home/home.component').then((m) => m.HomeComponent),
+    loadComponent: () => import('./layout/shell.component').then((m) => m.ShellComponent),
+    canActivate: [authGuard],
+    children: [
+      {
+        path: '',
+        loadComponent: () =>
+          import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
+      },
+    ],
   },
   { path: '**', redirectTo: '' },
 ];
