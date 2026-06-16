@@ -1,7 +1,10 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { SwUpdate, VersionReadyEvent } from '@angular/service-worker';
+import { filter } from 'rxjs';
 
 import { AuthService } from '../core/services/auth.service';
+import { ConnectivityService } from '../core/services/connectivity.service';
 
 /**
  * Coquille applicative (zone authentifiée) : en-tête, contenu routé et
@@ -16,6 +19,15 @@ import { AuthService } from '../core/services/auth.service';
       <span class="title">🌱 Agri-IoT</span>
       <button class="logout" type="button" (click)="logout()" aria-label="Se déconnecter">⏻</button>
     </header>
+
+    @if (!connectivity.online()) {
+      <div class="banner offline" role="status">📡 Hors-ligne — données en cache.</div>
+    }
+    @if (updateReady()) {
+      <button class="banner update" type="button" (click)="applyUpdate()">
+        ⬆ Mise à jour disponible — appuyer pour recharger
+      </button>
+    }
 
     <section class="content">
       <router-outlet />
@@ -78,12 +90,34 @@ import { AuthService } from '../core/services/auth.service';
       }
       .bottom-nav a.active { color: var(--color-primary); font-weight: 600; }
       .bottom-nav .icon { font-size: 1.3rem; }
+      .banner {
+        width: 100%; padding: 0.6rem 1rem; font-size: 0.85rem; text-align: center; border: none;
+      }
+      .banner.offline { background: #fff3e0; color: var(--color-warn); }
+      .banner.update { background: var(--color-accent); color: #fff; font-weight: 600; }
     `,
   ],
 })
 export class ShellComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly swUpdate = inject(SwUpdate);
+  readonly connectivity = inject(ConnectivityService);
+
+  readonly updateReady = signal(false);
+
+  constructor() {
+    // Détecte une nouvelle version mise en cache par le service worker.
+    if (this.swUpdate.isEnabled) {
+      this.swUpdate.versionUpdates
+        .pipe(filter((e): e is VersionReadyEvent => e.type === 'VERSION_READY'))
+        .subscribe(() => this.updateReady.set(true));
+    }
+  }
+
+  applyUpdate(): void {
+    void this.swUpdate.activateUpdate().then(() => document.location.reload());
+  }
 
   logout(): void {
     this.auth.logout();

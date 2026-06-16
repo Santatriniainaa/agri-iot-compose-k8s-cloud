@@ -73,9 +73,18 @@ export interface Latest {
   data: Record<string, unknown>;
 }
 
+export interface AlertItem {
+  site?: string;
+  parcel?: string;
+  level?: string;
+  reason?: string;
+  recommendation?: { action?: string; minutes?: number; volume_l_m2?: number };
+  ts?: string;
+}
+
 export interface Alerts {
   count: number;
-  alerts: Array<Record<string, unknown>>;
+  alerts: AlertItem[];
 }
 
 /** Métriques exposées par /api/v1/history (liste blanche côté backend). */

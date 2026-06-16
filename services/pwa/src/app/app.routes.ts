@@ -28,6 +28,11 @@ export const routes: Routes = [
             (m) => m.ParcelDetailComponent,
           ),
       },
+      {
+        path: 'alerts',
+        loadComponent: () =>
+          import('./features/alerts/alerts.component').then((m) => m.AlertsComponent),
+      },
     ],
   },
   { path: '**', redirectTo: '' },
