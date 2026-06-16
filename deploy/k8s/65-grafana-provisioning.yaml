@@ -435,7 +435,7 @@ data:
           "type": "state-timeline",
           "options": { "showValue": "never", "mergeValues": true, "rowHeight": 0.9, "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
           "targets": [
-            { "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" }, "refId": "A", "query": "from(bucket: \"telemetry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"agri_processed\" and r._field == \"irrigation_needed\" and r.site == \"${site}\" and r.parcel =~ /^(${parcel:regex})$/)\n  |> group(columns: [\"parcel\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: max, createEmpty: false)\n  |> drop(columns: [\"_start\", \"_stop\"])\n  |> group(columns: [\"parcel\"])" }
+            { "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" }, "refId": "A", "query": "from(bucket: \"telemetry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"agri_processed\" and r._field == \"irrigation_needed\" and r.site == \"${site}\" and r.parcel =~ /^(${parcel:regex})$/)\n  |> aggregateWindow(every: v.windowPeriod, fn: max, createEmpty: false)\n  |> keep(columns: [\"_time\", \"_value\", \"parcel\"])\n  |> group(columns: [\"parcel\"])" }
           ]
         },
 
