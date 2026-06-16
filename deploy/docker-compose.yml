@@ -266,6 +266,23 @@ services:
     networks: [agri-iot-compose-k8s-cloud]
     logging: *default-logging
 
+  # 8) PWA (application mobile Angular servie par Nginx) -----------------
+  pwa:
+    build: ./services/pwa
+    image: agri-iot-compose-k8s-cloud/pwa:latest   # tag partagé avec les manifests k8s
+    container_name: agri-iot-compose-k8s-cloud-pwa
+    restart: unless-stopped
+    depends_on:
+      api-service:
+        condition: service_started
+    ports:
+      - "8080:8080"
+    environment:
+      # URL de l'API vue depuis le NAVIGATEUR (injectée au runtime dans config.json).
+      API_BASE_URL: ${PWA_API_BASE_URL:-http://localhost:8000}
+    networks: [agri-iot-compose-k8s-cloud]
+    logging: *default-logging
+
 networks:
   agri-iot-compose-k8s-cloud:
     driver: bridge
