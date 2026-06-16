@@ -233,6 +233,7 @@ services:
       MQTT_PORT: ${MQTT_PORT}
       MQTT_USERNAME: ${MQTT_USERNAME}
       MQTT_PASSWORD: ${MQTT_PASSWORD}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
     networks: [agri-iot-compose-k8s-cloud]
     logging: *default-logging
 
