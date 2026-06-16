@@ -1,0 +1,11 @@
+# Contexte de build minimal — ne pas envoyer les artefacts locaux au démon Docker.
+node_modules
+dist
+.angular
+out-tsc
+
+# Logs / divers
+*.log
+npm-debug.log*
+.DS_Store
+.git
