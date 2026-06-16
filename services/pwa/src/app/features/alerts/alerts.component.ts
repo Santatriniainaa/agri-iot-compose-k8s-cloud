@@ -10,7 +10,8 @@ import { AlertItem } from '../../core/models/api.models';
   template: `
     <header class="head">
       <h1>Alertes</h1>
-      <button type="button" class="refresh" (click)="load()" [disabled]="loading()">⟳</button>
+      <button type="button" class="refresh" (click)="load()" [disabled]="loading()"
+              aria-label="Rafraîchir">⟳</button>
     </header>
 
     @if (items().length) {

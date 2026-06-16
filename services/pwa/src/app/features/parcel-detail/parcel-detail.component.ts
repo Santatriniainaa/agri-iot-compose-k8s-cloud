@@ -11,6 +11,11 @@ interface MetricChoice {
   label: string;
 }
 
+interface RangeChoice {
+  key: string;
+  label: string;
+}
+
 /**
  * Détail d'une parcelle : recommandation d'irrigation + rendement ML prévu,
  * et historique d'une métrique sélectionnable (graphe). Le paramètre de route
@@ -24,7 +29,8 @@ interface MetricChoice {
     <header class="head">
       <a routerLink="/" class="back" aria-label="Retour">←</a>
       <h1>{{ parcel() }}</h1>
-      <button type="button" class="refresh" (click)="reload()" [disabled]="loading()">⟳</button>
+      <button type="button" class="refresh" (click)="reload()" [disabled]="loading()"
+              aria-label="Rafraîchir">⟳</button>
     </header>
 
     @if (reco(); as r) {
@@ -51,14 +57,27 @@ interface MetricChoice {
 
     <section class="card">
       <h2>Historique</h2>
-      <div class="metric-tabs">
+      <div class="metric-tabs" role="tablist" aria-label="Métrique">
         @for (m of metrics; track m.key) {
-          <button type="button" [class.active]="metric() === m.key" (click)="metric.set(m.key)">
+          <button type="button" role="tab" [attr.aria-selected]="metric() === m.key"
+                  [class.active]="metric() === m.key" (click)="metric.set(m.key)">
             {{ m.label }}
           </button>
         }
       </div>
-      <app-line-chart [values]="series()" />
+      <div class="range-tabs" role="tablist" aria-label="Plage de temps">
+        @for (r of ranges; track r.key) {
+          <button type="button" role="tab" [attr.aria-selected]="range() === r.key"
+                  [class.active]="range() === r.key" (click)="range.set(r.key)">
+            {{ r.label }}
+          </button>
+        }
+      </div>
+      @if (loading()) {
+        <p class="state">Chargement…</p>
+      } @else {
+        <app-line-chart [values]="series()" />
+      }
     </section>
 
     @if (error()) { <p class="state error">{{ error() }}</p> }
@@ -83,11 +102,13 @@ interface MetricChoice {
       .anomaly { color: var(--color-danger); margin: 0.25rem 0; }
       .yield { margin: 0.25rem 0; }
       .based { list-style: none; display: flex; flex-wrap: wrap; gap: 0.75rem; padding: 0; margin: 0.75rem 0 0; color: var(--color-muted); font-size: 0.9rem; }
-      .metric-tabs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; }
-      .metric-tabs button {
+      .metric-tabs, .range-tabs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; }
+      .metric-tabs button, .range-tabs button {
         padding: 0.4rem 0.7rem; font-size: 0.8rem; background: #eef3ea; color: var(--color-muted);
       }
-      .metric-tabs button.active { background: var(--color-primary); color: #fff; }
+      .range-tabs button { padding: 0.3rem 0.6rem; font-size: 0.75rem; }
+      .metric-tabs button.active, .range-tabs button.active { background: var(--color-primary); color: #fff; }
+      .state { text-align: center; color: var(--color-muted); padding: 1.5rem 0; }
       .state.error { color: var(--color-danger); text-align: center; }
     `,
   ],
@@ -98,6 +119,7 @@ export class ParcelDetailComponent {
   readonly parcel = input<string>('');
 
   readonly metric = signal<Metric>('soil_moisture_avg');
+  readonly range = signal<string>('-1h');
   readonly reco = signal<Recommendation | null>(null);
   readonly points = signal<number[]>([]);
   readonly loading = signal(false);
@@ -112,31 +134,50 @@ export class ParcelDetailComponent {
     { key: 'rainfall_sum', label: 'Pluie' },
   ];
 
+  readonly ranges: RangeChoice[] = [
+    { key: '-1h', label: '1 h' },
+    { key: '-24h', label: '24 h' },
+    { key: '-7d', label: '7 j' },
+  ];
+
   constructor() {
-    // Recharge dès que la parcelle (route) ou la métrique sélectionnée change.
+    // La recommandation ne dépend que de la parcelle.
+    effect(() => {
+      const parcel = this.parcel();
+      if (parcel) {
+        this.loadReco(parcel);
+      }
+    });
+    // L'historique dépend de la parcelle, de la métrique et de la plage.
     effect(() => {
       const parcel = this.parcel();
       const metric = this.metric();
+      const range = this.range();
       if (parcel) {
-        this.load(parcel, metric);
+        this.loadHistory(parcel, metric, range);
       }
     });
   }
 
   reload(): void {
-    this.load(this.parcel(), this.metric());
+    const parcel = this.parcel();
+    if (parcel) {
+      this.loadReco(parcel);
+      this.loadHistory(parcel, this.metric(), this.range());
+    }
   }
 
-  private load(parcel: string, metric: Metric): void {
-    this.loading.set(true);
-    this.error.set(null);
-
+  private loadReco(parcel: string): void {
     this.api.recommend(parcel).subscribe({
       next: (r) => this.reco.set(r),
       error: () => this.error.set('Recommandation indisponible.'),
     });
+  }
 
-    this.api.history(parcel, metric, '-1h').subscribe({
+  private loadHistory(parcel: string, metric: Metric, range: string): void {
+    this.loading.set(true);
+    this.error.set(null);
+    this.api.history(parcel, metric, range).subscribe({
       next: (h) => {
         this.points.set(h.points.map((p) => p.value ?? 0));
         this.loading.set(false);

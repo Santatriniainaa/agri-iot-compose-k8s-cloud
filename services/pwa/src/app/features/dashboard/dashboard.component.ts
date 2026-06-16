@@ -28,7 +28,8 @@ import { Overview } from '../../core/models/api.models';
 
       <header class="head">
         <h1>Parcelles</h1>
-        <button type="button" class="refresh" (click)="load()" [disabled]="loading()">⟳</button>
+        <button type="button" class="refresh" (click)="load()" [disabled]="loading()"
+                aria-label="Rafraîchir">⟳</button>
       </header>
 
       @if (data(); as ov) {
