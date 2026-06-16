@@ -13,7 +13,7 @@ IMAGES   = edge-service sensor-simulator api-service weather-service
 # Images tierces (broker, base, ingestion, visualisation) — pré-tirées dans le nœud.
 DEPS_IMAGES = eclipse-mosquitto:2 influxdb:2.7 telegraf:1.30 grafana/grafana:11.1.0
 
-.PHONY: help up down build rebuild start stop restart logs ps services demo smoke scale loadtest \
+.PHONY: help up down build rebuild start stop restart logs ps services demo smoke test-api scale loadtest \
         k8s-cluster k8s-metrics k8s-load k8s-warmup k8s-deploy k8s-up k8s-status k8s-deploys k8s-forward \
         k8s-start k8s-stop k8s-restart k8s-logs k8s-delete k8s-cluster-delete clean
 
@@ -30,6 +30,7 @@ help:
 	@echo "  make logs  [S=svc]   - suit les logs d'un service (défaut: edge-service)"
 	@echo "  make demo     - interroge l'API (parcelles, recommandation, alertes)"
 	@echo "  make smoke    - test de bout en bout automatisé"
+	@echo "  make test-api - tests unitaires de l'API (pytest, en conteneur)"
 	@echo "  make scale N=5- réplique les sensor-simulators (scaling horizontal)"
 	@echo "  make loadtest - load test chiffré (débit/latence/pertes/CPU)"
 	@echo "  --- Kubernetes (cluster kind « $(CLUSTER) ») ---"
@@ -98,6 +99,14 @@ demo:
 
 smoke:
 	./scripts/smoke-test.sh
+
+# Tests unitaires de l'API en conteneur : on réutilise l'image api-service (qui porte
+# déjà les deps runtime) en y ajoutant pytest+httpx, le code monté en lecture seule.
+test-api:
+	$(COMPOSE) build api-service
+	docker run --rm -v "$(CURDIR)/services/api":/app:ro -w /app --entrypoint sh \
+	  agri-iot-compose-k8s-cloud/api-service:latest \
+	  -c "pip install -q pytest==8.2.2 httpx==0.27.0 && python -m pytest -q"
 
 scale:
 	$(COMPOSE) up -d --scale sensor-simulator=$(N)
