@@ -21,6 +21,13 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
       },
+      {
+        path: 'parcel/:parcel',
+        loadComponent: () =>
+          import('./features/parcel-detail/parcel-detail.component').then(
+            (m) => m.ParcelDetailComponent,
+          ),
+      },
     ],
   },
   { path: '**', redirectTo: '' },
