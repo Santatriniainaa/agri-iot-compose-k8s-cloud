@@ -17,11 +17,13 @@ Docs interactives : http://localhost:8000/docs
 """
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from core import config, ml, mqtt
+from core.security import get_current_user
 from routers import api as api_router
+from routers import auth as auth_router
 from routers import meta as meta_router
 
 
@@ -44,9 +46,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Endpoints transverses (accueil, santé).
+# Endpoints transverses (accueil, santé) — publics (sondes Docker/k8s).
 app.include_router(meta_router.router)
 
-# Router métier : surface versionnée + alias rétro-compatible.
-app.include_router(api_router.router, prefix="/api/v1")
+# Authentification : émission de JWT (publique, sous /api/v1).
+app.include_router(auth_router.router, prefix="/api/v1")
+
+# Router métier — surface versionnée /api/v1 : PROTÉGÉE par JWT (cible PWA).
+app.include_router(api_router.router, prefix="/api/v1",
+                   dependencies=[Depends(get_current_user)])
+
+# Alias rétro-compatible /api : OUVERT (déprécié) — préserve Grafana, scripts et
+# `make smoke` qui appellent /api/* sans authentification.
 app.include_router(api_router.router, prefix="/api", include_in_schema=False)

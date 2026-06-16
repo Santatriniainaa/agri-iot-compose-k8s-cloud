@@ -28,3 +28,11 @@ MODEL_PATH = os.getenv("MODEL_PATH", "/app/models/yield_model.pkl")
 
 # CORS — origines autorisées pour la PWA (navigateur). CSV, "*" pour tout autoriser.
 CORS_ORIGINS = _csv(os.getenv("CORS_ORIGINS", "*"))
+
+# Authentification JWT (posture démo : un utilisateur paramétré par env).
+AUTH_USER = os.getenv("API_AUTH_USER", "agri")
+AUTH_PASSWORD = os.getenv("API_AUTH_PASSWORD", "agri-iot-demo")
+# Clé de signature des JWT — À CHANGER en production (secret k8s).
+JWT_SECRET = os.getenv("JWT_SECRET", "agri-iot-compose-k8s-cloud-jwt-change-me-0123456789")
+JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "720"))   # 12 h par défaut

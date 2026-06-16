@@ -9,6 +9,11 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
 class Health(BaseModel):
     status: str = "ok"
     influxdb: bool
