@@ -1,142 +1,330 @@
 {
-  "annotations": { "list": [] },
+  "annotations": {
+    "list": [
+      {
+        "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
+        "enable": true,
+        "hide": false,
+        "iconColor": "red",
+        "name": "Anomalies capteurs",
+        "target": {
+          "refId": "Anno",
+          "query": "from(bucket: \"telemetry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"agri_processed\" and r._field == \"anomaly\" and r._value == 1 and r.site == \"${site}\")\n  |> keep(columns: [\"_time\", \"parcel\"])\n  |> rename(columns: {parcel: \"text\"})"
+        }
+      }
+    ]
+  },
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": null,
-  "links": [],
+  "links": [
+    {
+      "title": "Dashboard météo (agri-api-meteo)",
+      "type": "dashboards",
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": ["meteo"],
+      "targetBlank": false
+    }
+  ],
   "liveNow": true,
+  "templating": {
+    "list": [
+      {
+        "name": "site",
+        "label": "Site",
+        "type": "query",
+        "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
+        "query": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"telemetry\", tag: \"site\", predicate: (r) => r._measurement == \"agri_processed\", start: -6h)",
+        "refresh": 2,
+        "sort": 1,
+        "current": { "text": "farm01", "value": "farm01" },
+        "includeAll": false,
+        "multi": false
+      },
+      {
+        "name": "parcel",
+        "label": "Parcelle",
+        "type": "query",
+        "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
+        "query": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"telemetry\", tag: \"parcel\", predicate: (r) => r._measurement == \"agri_processed\" and r.site == \"${site}\", start: -6h)",
+        "refresh": 2,
+        "sort": 1,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
   "panels": [
     {
+      "type": "row",
+      "id": 100,
+      "title": "Vue d'ensemble",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
       "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "spanNulls": true },
-          "displayName": "${__field.labels.parcel}",
-          "unit": "percent",
-          "min": 0,
-          "max": 60,
-          "thresholds": { "mode": "absolute", "steps": [
-            { "color": "red", "value": null },
-            { "color": "orange", "value": 30 },
-            { "color": "green", "value": 40 }
-          ] }
-        }
-      },
-      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "unit": "short", "noValue": "0", "thresholds": { "mode": "absolute", "steps": [ { "color": "blue", "value": null } ] } } },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
       "id": 1,
-      "title": "Humidité du sol (soil_moisture_avg) par parcelle",
-      "type": "timeseries",
-      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "mean"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [
-        {
-          "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
-          "refId": "A",
-          "query": "from(bucket: \"telemetry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"agri_processed\" and r._field == \"soil_moisture_avg\")\n  |> group(columns: [\"parcel\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)"
-        }
-      ]
-    },
-    {
-      "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "spanNulls": true },
-          "displayName": "${__field.labels.parcel}",
-          "unit": "celsius"
-        }
-      },
-      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 0 },
-      "id": 2,
-      "title": "Température de l'air (temperature_avg)",
-      "type": "timeseries",
-      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "mean"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [
-        {
-          "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
-          "refId": "A",
-          "query": "from(bucket: \"telemetry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"agri_processed\" and r._field == \"temperature_avg\")\n  |> group(columns: [\"parcel\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)"
-        }
-      ]
-    },
-    {
-      "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "spanNulls": true },
-          "displayName": "${__field.labels.parcel}",
-          "unit": "none",
-          "min": 4,
-          "max": 9
-        }
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
-      "id": 3,
-      "title": "pH du sol (soil_ph_avg)",
-      "type": "timeseries",
-      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "mean"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
-      "targets": [
-        {
-          "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
-          "refId": "A",
-          "query": "from(bucket: \"telemetry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"agri_processed\" and r._field == \"soil_ph_avg\")\n  |> group(columns: [\"parcel\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)"
-        }
-      ]
-    },
-    {
-      "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "displayName": "${__field.labels.parcel}",
-          "unit": "bool",
-          "mappings": [
-            { "type": "value", "options": { "0": { "text": "OK", "color": "green" }, "1": { "text": "IRRIGUER", "color": "red" } } }
-          ],
-          "thresholds": { "mode": "absolute", "steps": [
-            { "color": "green", "value": null },
-            { "color": "red", "value": 1 }
-          ] }
-        }
-      },
-      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 9 },
-      "id": 4,
-      "title": "Besoin d'irrigation (dernier état)",
+      "title": "Parcelles actives",
       "type": "stat",
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "orientation": "auto", "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "value_and_name", "text": { "valueSize": 30, "titleSize": 18 } },
-      "targets": [
-        {
-          "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
-          "refId": "A",
-          "query": "from(bucket: \"telemetry\")\n  |> range(start: -15m)\n  |> filter(fn: (r) => r._measurement == \"agri_processed\" and r._field == \"irrigation_needed\")\n  |> group(columns: [\"parcel\"])\n  |> last()"
-        }
-      ]
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "value", "text": { "valueSize": 36 } },
+      "targets": [ { "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" }, "refId": "A", "query": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"telemetry\", tag: \"parcel\", predicate: (r) => r._measurement == \"agri_processed\" and r.site == \"${site}\", start: -15m)\n  |> count()" } ]
     },
     {
       "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "displayName": "${__field.labels.parcel}",
-          "unit": "short",
-          "thresholds": { "mode": "absolute", "steps": [
-            { "color": "green", "value": null },
-            { "color": "red", "value": 1 }
-          ] }
-        }
-      },
-      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 9 },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "unit": "percent", "min": 0, "max": 60, "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "orange", "value": 30 }, { "color": "green", "value": 40 } ] } } },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "id": 2,
+      "title": "Humidité moyenne",
+      "type": "gauge",
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showThresholdLabels": false, "showThresholdMarkers": true },
+      "targets": [ { "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" }, "refId": "A", "query": "from(bucket: \"telemetry\")\n  |> range(start: -15m)\n  |> filter(fn: (r) => r._measurement == \"agri_processed\" and r._field == \"soil_moisture_avg\" and r.site == \"${site}\" and r.parcel =~ /^(${parcel:regex})$/)\n  |> group(columns: [\"parcel\"])\n  |> last()\n  |> group()\n  |> mean()" } ]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "unit": "celsius", "thresholds": { "mode": "absolute", "steps": [ { "color": "blue", "value": null }, { "color": "green", "value": 15 }, { "color": "orange", "value": 30 }, { "color": "red", "value": 38 } ] } } },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "id": 3,
+      "title": "Température moyenne",
+      "type": "stat",
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "background", "graphMode": "area", "justifyMode": "center", "textMode": "value" },
+      "targets": [ { "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" }, "refId": "A", "query": "from(bucket: \"telemetry\")\n  |> range(start: -15m)\n  |> filter(fn: (r) => r._measurement == \"agri_processed\" and r._field == \"temperature_avg\" and r.site == \"${site}\" and r.parcel =~ /^(${parcel:regex})$/)\n  |> group(columns: [\"parcel\"])\n  |> last()\n  |> group()\n  |> mean()" } ]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "unit": "none", "min": 4, "max": 9, "decimals": 2, "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "orange", "value": 5.5 }, { "color": "green", "value": 6 }, { "color": "orange", "value": 7 }, { "color": "red", "value": 7.8 } ] } } },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "id": 4,
+      "title": "pH moyen du sol",
+      "type": "gauge",
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "showThresholdLabels": false, "showThresholdMarkers": true },
+      "targets": [ { "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" }, "refId": "A", "query": "from(bucket: \"telemetry\")\n  |> range(start: -15m)\n  |> filter(fn: (r) => r._measurement == \"agri_processed\" and r._field == \"soil_ph_avg\" and r.site == \"${site}\" and r.parcel =~ /^(${parcel:regex})$/)\n  |> group(columns: [\"parcel\"])\n  |> last()\n  |> group()\n  |> mean()" } ]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "unit": "short", "noValue": "0", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } } },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
       "id": 5,
+      "title": "Irrigation en cours",
+      "type": "stat",
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "value", "text": { "valueSize": 36 } },
+      "targets": [ { "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" }, "refId": "A", "query": "from(bucket: \"telemetry\")\n  |> range(start: -15m)\n  |> filter(fn: (r) => r._measurement == \"agri_processed\" and r._field == \"irrigation_needed\" and r.site == \"${site}\" and r.parcel =~ /^(${parcel:regex})$/)\n  |> group(columns: [\"parcel\"])\n  |> last()\n  |> group()\n  |> sum()" } ]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "unit": "short", "noValue": "0", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } } },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "id": 6,
       "title": "Anomalies (15 min)",
       "type": "stat",
-      "options": { "reduceOptions": { "calcs": ["sum"], "fields": "", "values": false }, "orientation": "auto", "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "value_and_name", "text": { "valueSize": 30, "titleSize": 18 } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "value", "text": { "valueSize": 36 } },
+      "targets": [ { "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" }, "refId": "A", "query": "from(bucket: \"telemetry\")\n  |> range(start: -15m)\n  |> filter(fn: (r) => r._measurement == \"agri_processed\" and r._field == \"anomaly\" and r.site == \"${site}\" and r.parcel =~ /^(${parcel:regex})$/)\n  |> group()\n  |> sum()" } ]
+    },
+
+    {
+      "type": "row",
+      "id": 101,
+      "title": "Humidité & irrigation",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 }
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 18, "gradientMode": "opacity", "showPoints": "never", "spanNulls": true, "thresholdsStyle": { "mode": "dashed" } },
+          "displayName": "${__field.labels.parcel} ${__field.labels.kind}",
+          "unit": "percent", "min": 0, "max": 60,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "orange", "value": 30 }, { "color": "green", "value": 40 } ] }
+        },
+        "overrides": [
+          { "matcher": { "id": "byRegexp", "options": ".*min.*" }, "properties": [ { "id": "custom.lineStyle", "value": { "dash": [6, 6], "fill": "dash" } }, { "id": "custom.fillOpacity", "value": 0 } ] }
+        ]
+      },
+      "gridPos": { "h": 9, "w": 16, "x": 0, "y": 6 },
+      "id": 10,
+      "title": "Humidité du sol — moyenne (ligne) & minimum (pointillé) par parcelle",
+      "type": "timeseries",
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "mean", "min", "max"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
+        { "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" }, "refId": "A", "query": "from(bucket: \"telemetry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"agri_processed\" and r._field == \"soil_moisture_avg\" and r.site == \"${site}\" and r.parcel =~ /^(${parcel:regex})$/)\n  |> map(fn: (r) => ({r with kind: \"moy\"}))\n  |> group(columns: [\"parcel\", \"kind\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)" },
+        { "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" }, "refId": "B", "query": "from(bucket: \"telemetry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"agri_processed\" and r._field == \"soil_moisture_min\" and r.site == \"${site}\" and r.parcel =~ /^(${parcel:regex})$/)\n  |> map(fn: (r) => ({r with kind: \"min\"}))\n  |> group(columns: [\"parcel\", \"kind\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: min, createEmpty: false)" }
+      ]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "custom": { "align": "center", "cellOptions": { "type": "auto" }, "filterable": false }, "thresholds": { "mode": "absolute", "steps": [ { "color": "text", "value": null } ] } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "soil_moisture_avg" }, "properties": [ { "id": "displayName", "value": "Humidité %" }, { "id": "unit", "value": "percent" }, { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "gradient" } }, { "id": "thresholds", "value": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "orange", "value": 30 }, { "color": "green", "value": 40 } ] } } ] },
+          { "matcher": { "id": "byName", "options": "temperature_avg" }, "properties": [ { "id": "displayName", "value": "Temp °C" }, { "id": "unit", "value": "celsius" }, { "id": "decimals", "value": 1 } ] },
+          { "matcher": { "id": "byName", "options": "soil_ph_avg" }, "properties": [ { "id": "displayName", "value": "pH" }, { "id": "decimals", "value": 2 } ] },
+          { "matcher": { "id": "byName", "options": "irrigation_needed" }, "properties": [ { "id": "displayName", "value": "Irrigation" }, { "id": "custom.cellOptions", "value": { "type": "color-background" } }, { "id": "mappings", "value": [ { "type": "value", "options": { "0": { "text": "OK", "color": "green" }, "1": { "text": "IRRIGUER", "color": "red" } } } ] } ] },
+          { "matcher": { "id": "byName", "options": "anomaly" }, "properties": [ { "id": "displayName", "value": "Anomalie" }, { "id": "custom.cellOptions", "value": { "type": "color-background" } }, { "id": "mappings", "value": [ { "type": "value", "options": { "0": { "text": "—", "color": "green" }, "1": { "text": "OUI", "color": "red" } } } ] } ] },
+          { "matcher": { "id": "byName", "options": "parcel" }, "properties": [ { "id": "displayName", "value": "Parcelle" } ] }
+        ]
+      },
+      "gridPos": { "h": 9, "w": 8, "x": 16, "y": 6 },
+      "id": 11,
+      "title": "État courant par parcelle",
+      "type": "table",
+      "options": { "showHeader": true, "cellHeight": "sm", "footer": { "show": false } },
+      "targets": [
+        { "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" }, "refId": "A", "format": "table", "query": "from(bucket: \"telemetry\")\n  |> range(start: -15m)\n  |> filter(fn: (r) => r._measurement == \"agri_processed\" and r.site == \"${site}\" and r.parcel =~ /^(${parcel:regex})$/ and contains(value: r._field, set: [\"soil_moisture_avg\", \"temperature_avg\", \"soil_ph_avg\", \"irrigation_needed\", \"anomaly\"]))\n  |> last()\n  |> pivot(rowKey: [\"parcel\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> group()\n  |> keep(columns: [\"parcel\", \"soil_moisture_avg\", \"temperature_avg\", \"soil_ph_avg\", \"irrigation_needed\", \"anomaly\"])" }
+      ]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "fillOpacity": 80, "lineWidth": 0 },
+          "displayName": "${__field.labels.parcel}",
+          "mappings": [ { "type": "value", "options": { "0": { "text": "OK", "color": "green" }, "1": { "text": "IRRIGUER", "color": "red" } } } ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] }
+        }
+      },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 15 },
+      "id": 12,
+      "title": "Irrigation — chronologie d'état par parcelle",
+      "type": "state-timeline",
+      "options": { "showValue": "never", "mergeValues": true, "rowHeight": 0.9, "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } },
+      "targets": [
+        { "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" }, "refId": "A", "query": "from(bucket: \"telemetry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"agri_processed\" and r._field == \"irrigation_needed\" and r.site == \"${site}\" and r.parcel =~ /^(${parcel:regex})$/)\n  |> group(columns: [\"parcel\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: max, createEmpty: false)" }
+      ]
+    },
+
+    {
+      "type": "row",
+      "id": 102,
+      "title": "Climat parcelle",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 21 }
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 18, "gradientMode": "opacity", "showPoints": "never", "spanNulls": true }, "displayName": "${__field.labels.parcel}", "unit": "celsius", "decimals": 1 } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+      "id": 20,
+      "title": "Température de l'air",
+      "type": "timeseries",
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "mean", "max"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [ { "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" }, "refId": "A", "query": "from(bucket: \"telemetry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"agri_processed\" and r._field == \"temperature_avg\" and r.site == \"${site}\" and r.parcel =~ /^(${parcel:regex})$/)\n  |> group(columns: [\"parcel\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)" } ]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "bars", "fillOpacity": 70, "lineWidth": 1, "spanNulls": false }, "displayName": "${__field.labels.parcel}", "unit": "lengthmm" } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
+      "id": 21,
+      "title": "Pluviométrie (rainfall_sum)",
+      "type": "timeseries",
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "sum"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [ { "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" }, "refId": "A", "query": "from(bucket: \"telemetry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"agri_processed\" and r._field == \"rainfall_sum\" and r.site == \"${site}\" and r.parcel =~ /^(${parcel:regex})$/)\n  |> group(columns: [\"parcel\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: sum, createEmpty: false)" } ]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 12, "gradientMode": "none", "showPoints": "never", "spanNulls": true, "thresholdsStyle": { "mode": "area" } }, "displayName": "${__field.labels.parcel}", "unit": "none", "min": 4, "max": 9, "decimals": 2, "thresholds": { "mode": "absolute", "steps": [ { "color": "orange", "value": null }, { "color": "green", "value": 6 }, { "color": "orange", "value": 7 } ] } } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 30 },
+      "id": 22,
+      "title": "pH du sol (zone optimale 6–7)",
+      "type": "timeseries",
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "mean"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [ { "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" }, "refId": "A", "query": "from(bucket: \"telemetry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"agri_processed\" and r._field == \"soil_ph_avg\" and r.site == \"${site}\" and r.parcel =~ /^(${parcel:regex})$/)\n  |> group(columns: [\"parcel\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)" } ]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1, "spanNulls": false }, "displayName": "${__field.labels.parcel}", "unit": "lengthmm" } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 30 },
+      "id": 23,
+      "title": "Irrigation — volume recommandé (L/m²)",
+      "type": "timeseries",
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "sum"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [ { "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" }, "refId": "A", "query": "from(bucket: \"telemetry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"agri_processed\" and r._field == \"irrigation_volume_l_m2\" and r.site == \"${site}\" and r.parcel =~ /^(${parcel:regex})$/)\n  |> group(columns: [\"parcel\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: max, createEmpty: false)" } ]
+    },
+
+    {
+      "type": "row",
+      "id": 103,
+      "title": "Diagnostic capteurs",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 38 }
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 10, "gradientMode": "none", "showPoints": "never", "spanNulls": true, "thresholdsStyle": { "mode": "line+area" } }, "displayName": "${__field.labels.parcel}", "unit": "percent", "min": 0, "max": 100, "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "orange", "value": 20 }, { "color": "green", "value": 50 } ] } } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 39 },
+      "id": 30,
+      "title": "Batterie des capteurs (%)",
+      "type": "timeseries",
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "min"] }, "tooltip": { "mode": "multi", "sort": "asc" } },
+      "targets": [ { "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" }, "refId": "A", "query": "from(bucket: \"telemetry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"agri_raw\" and r._field == \"battery\" and r.site == \"${site}\" and r.parcel =~ /^(${parcel:regex})$/)\n  |> group(columns: [\"parcel\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)" } ]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "lineInterpolation": "stepAfter", "lineWidth": 1, "fillOpacity": 8, "showPoints": "never", "spanNulls": true }, "displayName": "${__field.labels.parcel}", "unit": "short" } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 39 },
+      "id": 31,
+      "title": "Échantillons agrégés par fenêtre (débit / fraîcheur)",
+      "type": "timeseries",
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "mean"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [ { "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" }, "refId": "A", "query": "from(bucket: \"telemetry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"agri_processed\" and r._field == \"samples\" and r.site == \"${site}\" and r.parcel =~ /^(${parcel:regex})$/)\n  |> group(columns: [\"parcel\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)" } ]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx_ds" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 15, "gradientMode": "opacity", "showPoints": "auto", "spanNulls": true }, "displayName": "${__field.labels.parcel}", "unit": "percent", "min": 0, "max": 60 } },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 47 },
+      "id": 32,
+      "title": "Tendance longue — humidité moyenne horaire (bucket downsamplé)",
+      "type": "timeseries",
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "mean", "min", "max"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [ { "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx_ds" }, "refId": "A", "query": "from(bucket: \"telemetry_downsampled\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"agri_processed\" and r._field == \"soil_moisture_avg\" and r.site == \"${site}\" and r.parcel =~ /^(${parcel:regex})$/)\n  |> group(columns: [\"parcel\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)" } ]
+    },
+
+    {
+      "type": "row",
+      "id": 104,
+      "title": "Météo du site (Open-Meteo — voir dashboard agri-api-meteo)",
+      "collapsed": true,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 55 },
+      "panels": [
         {
           "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
-          "refId": "A",
-          "query": "from(bucket: \"telemetry\")\n  |> range(start: -15m)\n  |> filter(fn: (r) => r._measurement == \"agri_processed\" and r._field == \"anomaly\")\n  |> group(columns: [\"parcel\"])\n  |> sum()"
+          "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 15, "gradientMode": "opacity", "showPoints": "never", "spanNulls": true }, "displayName": "${__field.labels.site}", "unit": "celsius", "decimals": 1 } },
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 56 },
+          "id": 40,
+          "title": "Température air (Open-Meteo)",
+          "type": "timeseries",
+          "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+          "targets": [ { "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" }, "refId": "A", "query": "from(bucket: \"telemetry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"agri_weather\" and r._field == \"temperature_c\" and r.site == \"${site}\")\n  |> group(columns: [\"site\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)" } ]
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
+          "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 15, "gradientMode": "opacity", "showPoints": "never", "spanNulls": true }, "displayName": "${__field.labels.site}", "unit": "humidity", "min": 0, "max": 100 } },
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 56 },
+          "id": 41,
+          "title": "Humidité air (Open-Meteo)",
+          "type": "timeseries",
+          "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+          "targets": [ { "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" }, "refId": "A", "query": "from(bucket: \"telemetry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"agri_weather\" and r._field == \"humidity_pct\" and r.site == \"${site}\")\n  |> group(columns: [\"site\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)" } ]
+        },
+        {
+          "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" },
+          "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1, "spanNulls": false }, "displayName": "${__field.labels.site}", "unit": "lengthmm" } },
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 56 },
+          "id": 42,
+          "title": "Précipitations (Open-Meteo)",
+          "type": "timeseries",
+          "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull", "sum"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+          "targets": [ { "datasource": { "type": "influxdb", "uid": "agri-iot-compose-k8s-cloud_influx" }, "refId": "A", "query": "from(bucket: \"telemetry\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"agri_weather\" and r._field == \"precipitation_mm\" and r.site == \"${site}\")\n  |> group(columns: [\"site\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: max, createEmpty: false)" } ]
         }
       ]
     }
@@ -144,12 +332,11 @@
   "refresh": "5s",
   "schemaVersion": 39,
   "tags": ["agriculture", "iot", "docker", "compose", "k8s", "cloud", "intelligent"],
-  "templating": { "list": [] },
-  "time": { "from": "now-30m", "to": "now" },
+  "time": { "from": "now-1h", "to": "now" },
   "timepicker": { "refresh_intervals": ["1s", "2s", "5s", "10s", "30s", "1m"] },
   "timezone": "",
   "title": "agri-iot-compose-k8s-cloud — Supervision des parcelles",
   "uid": "agri-iot-compose-k8s-cloud-main",
-  "version": 2,
+  "version": 3,
   "weekStart": ""
 }
