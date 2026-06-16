@@ -590,6 +590,10 @@ agri-iot-compose-k8s-cloud/
   *retention policies* + downsampling multi-niveaux.
 - **Industrialisation** : CI/CD (build + scan d'images + `kubectl apply`), `Ingress` + TLS,
   registry d'images, tests unitaires sur la logique edge/ML.
+- **Application mobile (PWA Angular)** : 🚧 *en cours* sur la branche `feature/pwa-angular-mobile` —
+  client mobile installable (consultation parcelles, historique, recommandations, alertes) au-dessus
+  d'une **API v1** versionnée (CORS, endpoint agrégé `/api/v1/overview`, schémas typés, auth JWT).
+  Cadrage et architecture : [`docs/adr/0001-pwa-mobile-angular-et-api-v1.md`](docs/adr/0001-pwa-mobile-angular-et-api-v1.md).
 
 ---
 
