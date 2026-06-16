@@ -23,6 +23,7 @@ resources:
   - 30-telegraf.yaml
   - 40-edge-service.yaml
   - 50-sensor-simulator.yaml
+  - 55-weather-service.yaml
   - 60-api-service.yaml
   - 65-grafana-provisioning.yaml
   - 70-grafana.yaml

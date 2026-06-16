@@ -150,10 +150,10 @@ curl http://localhost:8000/api/predict/yield/zoneA
 
 | Étape | Mécanisme | Détail |
 |-------|-----------|--------|
-| **Acquisition** | `sensor-simulator` → MQTT `agri/<site>/<parcel>/raw/<type>` | mesures brutes QoS 1, modèle agronomique simulé |
+| **Acquisition** | `sensor-simulator` → MQTT `agri/<site>/<parcel>/raw/<type>` · `weather-service` → MQTT `agri/<site>/meteo` | mesures sol brutes (modèle agronomique) + météo réelle Open-Meteo (fallback synthétique) |
 | **Edge** | `edge-service` agrège par fenêtre glissante (`WINDOW_SECONDS`) | filtrage hors-plage, anomalies, **décision d'irrigation déterministe** |
 | **Re-publication** | MQTT `…/processed` et `…/alerts` | mesures agrégées + recommandations |
-| **Ingestion** | `telegraf` consomme MQTT → InfluxDB | parse JSON, tags `site`/`parcel`, mesures `agri_raw` / `agri_processed` |
+| **Ingestion** | `telegraf` consomme MQTT → InfluxDB | parse JSON, tags `site`/`parcel`/`source`, mesures `agri_raw` / `agri_processed` / `agri_weather` |
 | **Stockage** | `influxdb` *time-series* | bucket `telemetry` (30 j) + downsampling horaire → `telemetry_downsampled` (90 j) |
 | **Restitution** | `grafana` (dashboards) · `api-service` (REST/ML) | requêtes Flux ; l'API souscrit aussi aux `…/alerts` |
 
@@ -162,12 +162,13 @@ curl http://localhost:8000/api/predict/yield/zoneA
 | # | Service | Image / langage | Port | Rôle |
 |---|---------|-----------------|------|------|
 | 1 | `sensor-simulator` | Python 3.12 + paho-mqtt | — | Émule les capteurs, publie en MQTT (`raw/<type>`) — **stateless, réplicable** |
-| 2 | `edge-service` | Python 3.12 + paho-mqtt | — | Agrégation fenêtrée, anomalies, décision d'irrigation, store-and-forward |
-| 3 | `mosquitto` | eclipse-mosquitto:2 | 1883 / 9001 | Broker MQTT (pub/sub), auth login/mdp, persistance |
-| 4 | `telegraf` | telegraf:1.30 | — | Ingestion MQTT → InfluxDB (deux consumers : raw + processed) |
-| 5 | `influxdb` | influxdb:2.7 | 8086 | Base *time-series* + rétention/downsampling |
-| 6 | `api-service` | FastAPI + scikit-learn | 8000 | API REST : état, recommandation, prévision ML, alertes |
-| 7 | `grafana` | grafana:11.1 | 3000 | Tableaux de bord temps réel (provisionnés) |
+| 2 | `weather-service` | Python 3.12 + paho-mqtt + requests | — | Interroge l'**API Open-Meteo** (sans clé), publie la météo du site (`meteo`) — **fallback synthétique** si hors-ligne |
+| 3 | `edge-service` | Python 3.12 + paho-mqtt | — | Agrégation fenêtrée, anomalies, décision d'irrigation, store-and-forward |
+| 4 | `mosquitto` | eclipse-mosquitto:2 | 1883 / 9001 | Broker MQTT (pub/sub), auth login/mdp, persistance |
+| 5 | `telegraf` | telegraf:1.30 | — | Ingestion MQTT → InfluxDB (trois consumers : raw + processed + weather) |
+| 6 | `influxdb` | influxdb:2.7 | 8086 | Base *time-series* + rétention/downsampling |
+| 7 | `api-service` | FastAPI + scikit-learn | 8000 | API REST : état, recommandation, prévision ML, alertes |
+| 8 | `grafana` | grafana:11.1 | 3000 | Tableaux de bord temps réel (provisionnés) : *Supervision des parcelles* + **`agri-api-meteo`** |
 
 > Un service one-shot **`influx-init`** (image `influxdb:2.7`) s'exécute une fois après qu'InfluxDB
 > est sain pour créer — de façon idempotente — le bucket downsamplé et la *task* Flux d'agrégation.
@@ -315,6 +316,7 @@ Conteneur non-root, `HEALTHCHECK` intégré.
 agri/<site>/<parcel>/raw/<type>     # mesures brutes (simulateur → edge, telegraf)
 agri/<site>/<parcel>/processed      # mesures agrégées + décision (edge → telegraf)
 agri/<site>/<parcel>/alerts         # alertes / recommandations (edge → api-service)
+agri/<site>/meteo                   # météo du site Open-Meteo (weather → telegraf, mesure agri_weather)
 ```
 
 ### 7.2 Messages
