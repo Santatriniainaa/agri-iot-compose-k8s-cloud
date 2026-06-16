@@ -26,9 +26,15 @@ spec:
             - { name: INFLUX_BUCKET, valueFrom: { configMapKeyRef: { name: agri-iot-compose-k8s-cloud-config, key: INFLUX_BUCKET } } }
             - { name: MQTT_HOST,     valueFrom: { configMapKeyRef: { name: agri-iot-compose-k8s-cloud-config, key: MQTT_HOST } } }
             - { name: MQTT_PORT,     valueFrom: { configMapKeyRef: { name: agri-iot-compose-k8s-cloud-config, key: MQTT_PORT } } }
+            - { name: CORS_ORIGINS,      valueFrom: { configMapKeyRef: { name: agri-iot-compose-k8s-cloud-config, key: CORS_ORIGINS } } }
+            - { name: API_AUTH_USER,     valueFrom: { configMapKeyRef: { name: agri-iot-compose-k8s-cloud-config, key: API_AUTH_USER } } }
+            - { name: JWT_ALGORITHM,     valueFrom: { configMapKeyRef: { name: agri-iot-compose-k8s-cloud-config, key: JWT_ALGORITHM } } }
+            - { name: JWT_EXPIRE_MINUTES, valueFrom: { configMapKeyRef: { name: agri-iot-compose-k8s-cloud-config, key: JWT_EXPIRE_MINUTES } } }
             - { name: INFLUX_TOKEN,  valueFrom: { secretKeyRef:    { name: agri-iot-compose-k8s-cloud-secret, key: INFLUX_TOKEN } } }
             - { name: MQTT_USERNAME, valueFrom: { secretKeyRef:    { name: agri-iot-compose-k8s-cloud-secret, key: MQTT_USERNAME } } }
             - { name: MQTT_PASSWORD, valueFrom: { secretKeyRef:    { name: agri-iot-compose-k8s-cloud-secret, key: MQTT_PASSWORD } } }
+            - { name: API_AUTH_PASSWORD, valueFrom: { secretKeyRef:    { name: agri-iot-compose-k8s-cloud-secret, key: API_AUTH_PASSWORD } } }
+            - { name: JWT_SECRET,        valueFrom: { secretKeyRef:    { name: agri-iot-compose-k8s-cloud-secret, key: JWT_SECRET } } }
           resources:
             requests: { cpu: "100m", memory: "256Mi" }
             limits:   { cpu: "1",    memory: "512Mi" }

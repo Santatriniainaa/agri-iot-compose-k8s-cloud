@@ -234,6 +234,11 @@ services:
       MQTT_USERNAME: ${MQTT_USERNAME}
       MQTT_PASSWORD: ${MQTT_PASSWORD}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      API_AUTH_USER: ${API_AUTH_USER:-agri}
+      API_AUTH_PASSWORD: ${API_AUTH_PASSWORD:-agri-iot-demo}
+      JWT_SECRET: ${JWT_SECRET:-agri-iot-compose-k8s-cloud-jwt-change-me-0123456789}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-720}
     networks: [agri-iot-compose-k8s-cloud]
     logging: *default-logging
 
