@@ -1,0 +1,10 @@
+# Dépendances et build (régénérés par npm install / ng build dans l'image Docker)
+/node_modules
+/dist
+/out-tsc
+/.angular
+
+# Logs / divers
+*.log
+npm-debug.log*
+.DS_Store
