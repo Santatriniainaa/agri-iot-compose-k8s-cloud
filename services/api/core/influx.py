@@ -56,6 +56,27 @@ def query_parcels() -> list:
     return sorted(parcels)
 
 
+def query_weather() -> dict:
+    """Dernières conditions météo du site (mesure `agri_weather`, alimentée par
+    le weather-service via Open-Meteo). Mono-site en démo : on prend la dernière
+    valeur de chaque champ, tous sites confondus."""
+    flux = f'''
+    from(bucket: "{config.INFLUX_BUCKET}")
+      |> range(start: -3h)
+      |> filter(fn: (r) => r._measurement == "agri_weather")
+      |> last()
+    '''
+    fields: dict = {}
+    for table in _query(flux):
+        for record in table.records:
+            fields[record.get_field()] = record.get_value()
+            fields["time"] = record.get_time().isoformat()
+            src = record.values.get("source")
+            if src:
+                fields["source"] = src
+    return fields
+
+
 def query_history(parcel: str, metric: str, rng: str) -> list:
     parcel = safe_parcel(parcel)
     metric = safe_metric(metric)

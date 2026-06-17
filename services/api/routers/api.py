@@ -55,3 +55,12 @@ def predict(parcel: str):
 @router.get("/alerts", response_model=models.Alerts)
 def alerts(limit: int = 50):
     return {"count": mqtt.alerts_count(), "alerts": mqtt.recent_alerts(limit)}
+
+
+@router.get("/weather", response_model=models.Weather)
+def weather():
+    """Conditions météo courantes du site (Open-Meteo via le weather-service)."""
+    try:
+        return influx.query_weather()
+    except Exception as exc:                        # noqa: BLE001
+        raise HTTPException(503, f"InfluxDB indisponible: {exc}")

@@ -91,3 +91,18 @@ class Overview(BaseModel):
 class Alerts(BaseModel):
     count: int
     alerts: list[dict]
+
+
+class Weather(BaseModel):
+    """Conditions météo courantes du site (Open-Meteo via le weather-service)."""
+    time: Optional[str] = None
+    source: Optional[str] = None
+    temperature_c: Optional[float] = None
+    humidity_pct: Optional[float] = None
+    precipitation_mm: Optional[float] = None
+    wind_speed_ms: Optional[float] = None
+    pressure_hpa: Optional[float] = None
+    cloud_cover_pct: Optional[float] = None
+
+    # Tolère d'éventuels champs météo additionnels sans casser le contrat.
+    model_config = ConfigDict(extra="allow")
