@@ -1,6 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { MatIconModule } from '@angular/material/icon';
 
 import { AuthService } from '../../core/services/auth.service';
 
@@ -8,11 +9,11 @@ import { AuthService } from '../../core/services/auth.service';
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, MatIconModule],
   template: `
     <main class="login">
       <div class="brand">
-        <div class="logo">🌱</div>
+        <mat-icon class="logo">eco</mat-icon>
         <h1>Agri-IoT</h1>
         <p class="subtitle">Supervision des parcelles</p>
       </div>
@@ -51,7 +52,7 @@ import { AuthService } from '../../core/services/auth.service';
         margin: 0 auto;
       }
       .brand { text-align: center; }
-      .logo { font-size: 3.5rem; }
+      .logo { font-size: 3.5rem; width: 3.5rem; height: 3.5rem; color: var(--color-primary); }
       h1 { margin: 0.25rem 0 0; color: var(--color-primary-dark); }
       .subtitle { margin: 0; color: var(--color-muted); }
       form { display: flex; flex-direction: column; gap: 1rem; }

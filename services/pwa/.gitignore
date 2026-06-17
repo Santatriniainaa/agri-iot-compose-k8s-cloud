@@ -1,8 +1,14 @@
 # Dépendances et build (régénérés par npm install / ng build dans l'image Docker)
 /node_modules
 /dist
+/dist-verify
 /out-tsc
 /.angular
+*.tsbuildinfo
+
+# Tests (Vitest) — couverture et caches
+/coverage
+.vitest/
 
 # Logs / divers
 *.log

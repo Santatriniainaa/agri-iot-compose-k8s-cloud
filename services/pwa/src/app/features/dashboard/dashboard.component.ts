@@ -1,18 +1,20 @@
 import { DecimalPipe } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { MatIconModule } from '@angular/material/icon';
 
 import { ApiService } from '../../core/services/api.service';
 import { Overview } from '../../core/models/api.models';
 
 /**
- * Tableau de bord : vue d'ensemble de toutes les parcelles en un seul appel
- * (`/api/v1/overview`). Pull-to-refresh tactile + bouton de rafraîchissement.
+ * Parcelles : liste de toutes les parcelles en un seul appel (`/api/v1/overview`).
+ * Pull-to-refresh tactile + bouton de rafraîchissement. (Les KPIs agrégés sont
+ * présentés sur l'écran d'accueil.)
  */
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [RouterLink, DecimalPipe],
+  imports: [RouterLink, DecimalPipe, MatIconModule],
   template: `
     <div
       class="ptr"
@@ -29,16 +31,12 @@ import { Overview } from '../../core/models/api.models';
       <header class="head">
         <h1>Parcelles</h1>
         <button type="button" class="refresh" (click)="load()" [disabled]="loading()"
-                aria-label="Rafraîchir">⟳</button>
+                aria-label="Rafraîchir">
+          <mat-icon>refresh</mat-icon>
+        </button>
       </header>
 
       @if (data(); as ov) {
-        <div class="kpis">
-          <div class="kpi"><span class="n">{{ ov.count }}</span><span class="l">actives</span></div>
-          <div class="kpi warn"><span class="n">{{ ov.irrigating }}</span><span class="l">à irriguer</span></div>
-          <div class="kpi danger"><span class="n">{{ ov.anomalies }}</span><span class="l">anomalies</span></div>
-        </div>
-
         <ul class="cards">
           @for (p of ov.parcels; track p.parcel) {
             <li>
@@ -46,16 +44,16 @@ import { Overview } from '../../core/models/api.models';
                 <div class="card-head">
                   <span class="name">{{ p.parcel }}</span>
                   <span class="badges">
-                    @if (p.irrigation_needed) { <span class="badge warn">💧 {{ p.irrigation_minutes | number:'1.0-0' }} min</span> }
-                    @if (p.anomaly) { <span class="badge danger">⚠ anomalie</span> }
+                    @if (p.irrigation_needed) { <span class="badge warn"><mat-icon>water_drop</mat-icon>{{ p.irrigation_minutes | number:'1.0-0' }} min</span> }
+                    @if (p.anomaly) { <span class="badge danger"><mat-icon>warning</mat-icon>anomalie</span> }
                   </span>
                 </div>
                 <div class="metrics">
-                  <span>💧 {{ p.soil_moisture_avg | number:'1.0-1' }}%</span>
-                  <span>🌡 {{ p.temperature_avg | number:'1.0-1' }}°C</span>
-                  <span>🧪 pH {{ p.soil_ph_avg | number:'1.0-1' }}</span>
+                  <span><mat-icon>water_drop</mat-icon>{{ p.soil_moisture_avg | number:'1.0-1' }}%</span>
+                  <span><mat-icon>thermostat</mat-icon>{{ p.temperature_avg | number:'1.0-1' }}°C</span>
+                  <span><mat-icon>science</mat-icon>pH {{ p.soil_ph_avg | number:'1.0-1' }}</span>
                   @if (p.predicted_yield_index !== null) {
-                    <span>🌾 {{ p.predicted_yield_index | number:'1.0-2' }}</span>
+                    <span><mat-icon>grass</mat-icon>{{ p.predicted_yield_index | number:'1.0-2' }}</span>
                   }
                 </div>
               </a>
@@ -88,18 +86,9 @@ import { Overview } from '../../core/models/api.models';
       .head { display: flex; align-items: center; justify-content: space-between; }
       h1 { font-size: 1.4rem; margin: 0.25rem 0 1rem; }
       .refresh {
-        width: 2.4rem; height: 2.4rem; font-size: 1.2rem;
+        width: 2.4rem; height: 2.4rem; display: inline-flex; align-items: center; justify-content: center;
         background: var(--color-surface); box-shadow: var(--shadow); color: var(--color-primary);
       }
-      .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; margin-bottom: 1rem; }
-      .kpi {
-        background: var(--color-surface); border-radius: var(--radius); padding: 0.8rem 0.5rem;
-        text-align: center; box-shadow: var(--shadow); display: flex; flex-direction: column;
-      }
-      .kpi .n { font-size: 1.5rem; font-weight: 700; }
-      .kpi .l { font-size: 0.72rem; color: var(--color-muted); }
-      .kpi.warn .n { color: var(--color-warn); }
-      .kpi.danger .n { color: var(--color-danger); }
       .cards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.7rem; }
       .card {
         display: block; background: var(--color-surface); border-radius: var(--radius);
@@ -108,10 +97,13 @@ import { Overview } from '../../core/models/api.models';
       .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
       .name { font-weight: 700; font-size: 1.05rem; }
       .badges { display: flex; gap: 0.35rem; flex-wrap: wrap; }
-      .badge { font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 999px; background: #eef3ea; }
+      .badge { display: inline-flex; align-items: center; gap: 0.2rem; font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 999px; background: #eef3ea; }
+      .badge mat-icon { font-size: 0.9rem; width: 0.9rem; height: 0.9rem; }
       .badge.warn { background: #fff3e0; color: var(--color-warn); }
       .badge.danger { background: #ffebee; color: var(--color-danger); }
       .metrics { display: flex; flex-wrap: wrap; gap: 0.75rem; font-size: 0.9rem; color: var(--color-muted); }
+      .metrics span { display: inline-flex; align-items: center; gap: 0.25rem; }
+      .metrics mat-icon { font-size: 1rem; width: 1rem; height: 1rem; color: var(--color-primary); }
       .state { text-align: center; color: var(--color-muted); padding: 2rem 0; }
       .state.error { color: var(--color-danger); }
       .empty { text-align: center; color: var(--color-muted); padding: 1.5rem 0; }

@@ -1,4 +1,7 @@
-/* Thème mobile-first — variables et resets globaux. */
+/* Thème mobile-first — variables et resets globaux.
+   La police d'icônes Material (classe `.material-icons` pour <mat-icon>) est
+   auto-hébergée et déclarée dans angular.json (`styles`) → woff2 empaqueté,
+   fonctionne hors-ligne sans dépendance à Google Fonts. */
 :root {
   --color-primary: #2e7d32;
   --color-primary-dark: #1b5e20;

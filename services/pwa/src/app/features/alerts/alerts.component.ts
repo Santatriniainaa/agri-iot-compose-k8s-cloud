@@ -1,4 +1,5 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
+import { MatIconModule } from '@angular/material/icon';
 
 import { ApiService } from '../../core/services/api.service';
 import { AlertItem } from '../../core/models/api.models';
@@ -7,11 +8,12 @@ import { AlertItem } from '../../core/models/api.models';
 @Component({
   selector: 'app-alerts',
   standalone: true,
+  imports: [MatIconModule],
   template: `
     <header class="head">
       <h1>Alertes</h1>
       <button type="button" class="refresh" (click)="load()" [disabled]="loading()"
-              aria-label="Rafraîchir">⟳</button>
+              aria-label="Rafraîchir"><mat-icon>refresh</mat-icon></button>
     </header>
 
     @if (items().length) {
@@ -24,7 +26,7 @@ import { AlertItem } from '../../core/models/api.models';
             </div>
             <p class="reason">{{ a.reason ?? 'Alerte' }}</p>
             @if (a.recommendation?.action === 'irrigate') {
-              <p class="reco">💧 Irriguer {{ a.recommendation?.minutes }} min
+              <p class="reco"><mat-icon>water_drop</mat-icon> Irriguer {{ a.recommendation?.minutes }} min
                 (~{{ a.recommendation?.volume_l_m2 }} L/m²)</p>
             }
           </li>
@@ -43,7 +45,7 @@ import { AlertItem } from '../../core/models/api.models';
       .head { display: flex; align-items: center; justify-content: space-between; }
       h1 { font-size: 1.4rem; margin: 0.25rem 0 1rem; }
       .refresh {
-        width: 2.4rem; height: 2.4rem; font-size: 1.2rem;
+        width: 2.4rem; height: 2.4rem; display: inline-flex; align-items: center; justify-content: center;
         background: var(--color-surface); box-shadow: var(--shadow); color: var(--color-primary);
       }
       .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.7rem; }
@@ -57,7 +59,8 @@ import { AlertItem } from '../../core/models/api.models';
       .parcel { font-weight: 700; }
       .time { font-size: 0.75rem; color: var(--color-muted); }
       .reason { margin: 0.4rem 0 0; font-size: 0.9rem; }
-      .reco { margin: 0.35rem 0 0; font-size: 0.85rem; color: var(--color-warn); }
+      .reco { display: flex; align-items: center; gap: 0.3rem; margin: 0.35rem 0 0; font-size: 0.85rem; color: var(--color-warn); }
+      .reco mat-icon { font-size: 1rem; width: 1rem; height: 1rem; }
       .state { text-align: center; color: var(--color-muted); padding: 2rem 0; }
       .state.error { color: var(--color-danger); }
     `,

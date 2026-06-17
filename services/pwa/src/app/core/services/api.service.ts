@@ -11,6 +11,7 @@ import {
   Metric,
   Overview,
   Recommendation,
+  Weather,
   YieldPrediction,
 } from '../models/api.models';
 
@@ -63,5 +64,10 @@ export class ApiService {
   alerts(limit = 50): Observable<Alerts> {
     const params = new HttpParams().set('limit', limit);
     return this.http.get<Alerts>(`${this.base}/alerts`, { params });
+  }
+
+  /** Conditions météo courantes du site. */
+  weather(): Observable<Weather> {
+    return this.http.get<Weather>(`${this.base}/weather`);
   }
 }

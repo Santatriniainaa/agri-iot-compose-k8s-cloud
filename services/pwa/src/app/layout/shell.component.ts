@@ -1,6 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { SwUpdate, VersionReadyEvent } from '@angular/service-worker';
+import { MatIconModule } from '@angular/material/icon';
 import { filter } from 'rxjs';
 
 import { AuthService } from '../core/services/auth.service';
@@ -13,19 +14,23 @@ import { ConnectivityService } from '../core/services/connectivity.service';
 @Component({
   selector: 'app-shell',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, MatIconModule],
   template: `
     <header class="topbar">
-      <span class="title">🌱 Agri-IoT</span>
-      <button class="logout" type="button" (click)="logout()" aria-label="Se déconnecter">⏻</button>
+      <span class="title"><mat-icon>eco</mat-icon> Agri-IoT</span>
+      <button class="logout" type="button" (click)="logout()" aria-label="Se déconnecter">
+        <mat-icon>logout</mat-icon>
+      </button>
     </header>
 
     @if (!connectivity.online()) {
-      <div class="banner offline" role="status">📡 Hors-ligne — données en cache.</div>
+      <div class="banner offline" role="status">
+        <mat-icon>wifi_off</mat-icon> Hors-ligne — données en cache.
+      </div>
     }
     @if (updateReady()) {
       <button class="banner update" type="button" (click)="applyUpdate()">
-        ⬆ Mise à jour disponible — appuyer pour recharger
+        <mat-icon>system_update</mat-icon> Mise à jour disponible — appuyer pour recharger
       </button>
     }
 
@@ -35,10 +40,16 @@ import { ConnectivityService } from '../core/services/connectivity.service';
 
     <nav class="bottom-nav">
       <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">
-        <span class="icon">📊</span><span>Parcelles</span>
+        <mat-icon>home</mat-icon><span>Accueil</span>
+      </a>
+      <a routerLink="/parcels" routerLinkActive="active">
+        <mat-icon>grid_view</mat-icon><span>Parcelles</span>
+      </a>
+      <a routerLink="/weather" routerLinkActive="active">
+        <mat-icon>cloud</mat-icon><span>Météo</span>
       </a>
       <a routerLink="/alerts" routerLinkActive="active">
-        <span class="icon">🔔</span><span>Alertes</span>
+        <mat-icon>notifications</mat-icon><span>Alertes</span>
       </a>
     </nav>
   `,

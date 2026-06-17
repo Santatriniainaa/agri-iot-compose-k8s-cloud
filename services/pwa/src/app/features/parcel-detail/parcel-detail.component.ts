@@ -1,6 +1,7 @@
 import { DecimalPipe } from '@angular/common';
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { MatIconModule } from '@angular/material/icon';
 
 import { ApiService } from '../../core/services/api.service';
 import { Metric, Recommendation } from '../../core/models/api.models';
@@ -24,33 +25,33 @@ interface RangeChoice {
 @Component({
   selector: 'app-parcel-detail',
   standalone: true,
-  imports: [RouterLink, DecimalPipe, LineChartComponent],
+  imports: [RouterLink, DecimalPipe, LineChartComponent, MatIconModule],
   template: `
     <header class="head">
-      <a routerLink="/" class="back" aria-label="Retour">←</a>
+      <a routerLink="/parcels" class="back" aria-label="Retour"><mat-icon>arrow_back</mat-icon></a>
       <h1>{{ parcel() }}</h1>
       <button type="button" class="refresh" (click)="reload()" [disabled]="loading()"
-              aria-label="Rafraîchir">⟳</button>
+              aria-label="Rafraîchir"><mat-icon>refresh</mat-icon></button>
     </header>
 
     @if (reco(); as r) {
       <section class="card reco" [class.on]="r.irrigation_needed">
         <h2>Recommandation</h2>
         @if (r.irrigation_needed) {
-          <p class="action">💧 Irriguer <strong>{{ r.irrigation_minutes | number:'1.0-0' }} min</strong>
+          <p class="action"><mat-icon>water_drop</mat-icon> Irriguer <strong>{{ r.irrigation_minutes | number:'1.0-0' }} min</strong>
             (~{{ r.irrigation_volume_l_m2 | number:'1.0-2' }} L/m²)</p>
         } @else {
-          <p class="action ok">✅ Pas d'irrigation nécessaire</p>
+          <p class="action ok"><mat-icon>check_circle</mat-icon> Pas d'irrigation nécessaire</p>
         }
-        @if (r.anomaly) { <p class="anomaly">⚠ Anomalie capteur détectée</p> }
+        @if (r.anomaly) { <p class="anomaly"><mat-icon>warning</mat-icon> Anomalie capteur détectée</p> }
         @if (r.predicted_yield_index !== null) {
-          <p class="yield">🌾 Rendement prévu : <strong>{{ r.predicted_yield_index | number:'1.0-2' }}</strong> / 1</p>
+          <p class="yield"><mat-icon>grass</mat-icon> Rendement prévu : <strong>{{ r.predicted_yield_index | number:'1.0-2' }}</strong> / 1</p>
         }
         <ul class="based">
-          <li>💧 {{ r.based_on.soil_moisture_avg | number:'1.0-1' }}%</li>
-          <li>🌡 {{ r.based_on.temperature_avg | number:'1.0-1' }}°C</li>
-          <li>🌧 {{ r.based_on.rainfall_sum | number:'1.0-1' }} mm</li>
-          <li>🧪 pH {{ r.based_on.soil_ph_avg | number:'1.0-1' }}</li>
+          <li><mat-icon>water_drop</mat-icon> {{ r.based_on.soil_moisture_avg | number:'1.0-1' }}%</li>
+          <li><mat-icon>thermostat</mat-icon> {{ r.based_on.temperature_avg | number:'1.0-1' }}°C</li>
+          <li><mat-icon>umbrella</mat-icon> {{ r.based_on.rainfall_sum | number:'1.0-1' }} mm</li>
+          <li><mat-icon>science</mat-icon> pH {{ r.based_on.soil_ph_avg | number:'1.0-1' }}</li>
         </ul>
       </section>
     }
@@ -97,11 +98,16 @@ interface RangeChoice {
       }
       .card h2 { font-size: 1rem; margin: 0 0 0.75rem; }
       .reco.on { border-left: 4px solid var(--color-warn); }
-      .action { font-size: 1.05rem; margin: 0.25rem 0; }
+      .action { display: flex; align-items: center; gap: 0.35rem; font-size: 1.05rem; margin: 0.25rem 0; }
+      .action mat-icon { color: var(--color-accent); }
       .action.ok { color: var(--color-primary-dark); }
-      .anomaly { color: var(--color-danger); margin: 0.25rem 0; }
-      .yield { margin: 0.25rem 0; }
+      .action.ok mat-icon { color: var(--color-primary); }
+      .anomaly { display: flex; align-items: center; gap: 0.35rem; color: var(--color-danger); margin: 0.25rem 0; }
+      .yield { display: flex; align-items: center; gap: 0.35rem; margin: 0.25rem 0; }
       .based { list-style: none; display: flex; flex-wrap: wrap; gap: 0.75rem; padding: 0; margin: 0.75rem 0 0; color: var(--color-muted); font-size: 0.9rem; }
+      .based li { display: inline-flex; align-items: center; gap: 0.25rem; }
+      .based mat-icon, .yield mat-icon, .anomaly mat-icon { font-size: 1.05rem; width: 1.05rem; height: 1.05rem; }
+      .based mat-icon { color: var(--color-primary); }
       .metric-tabs, .range-tabs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; }
       .metric-tabs button, .range-tabs button {
         padding: 0.4rem 0.7rem; font-size: 0.8rem; background: #eef3ea; color: var(--color-muted);

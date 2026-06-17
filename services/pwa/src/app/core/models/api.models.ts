@@ -87,6 +87,18 @@ export interface Alerts {
   alerts: AlertItem[];
 }
 
+/** Conditions météo courantes du site (Open-Meteo via le weather-service). */
+export interface Weather {
+  time?: string | null;
+  source?: string | null;
+  temperature_c?: number | null;
+  humidity_pct?: number | null;
+  precipitation_mm?: number | null;
+  wind_speed_ms?: number | null;
+  pressure_hpa?: number | null;
+  cloud_cover_pct?: number | null;
+}
+
 /** Métriques exposées par /api/v1/history (liste blanche côté backend). */
 export type Metric =
   | 'soil_moisture_avg'

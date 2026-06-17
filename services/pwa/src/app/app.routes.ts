@@ -19,6 +19,11 @@ export const routes: Routes = [
       {
         path: '',
         loadComponent: () =>
+          import('./features/home/home.component').then((m) => m.HomeComponent),
+      },
+      {
+        path: 'parcels',
+        loadComponent: () =>
           import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
       },
       {
@@ -27,6 +32,11 @@ export const routes: Routes = [
           import('./features/parcel-detail/parcel-detail.component').then(
             (m) => m.ParcelDetailComponent,
           ),
+      },
+      {
+        path: 'weather',
+        loadComponent: () =>
+          import('./features/weather/weather.component').then((m) => m.WeatherComponent),
       },
       {
         path: 'alerts',
