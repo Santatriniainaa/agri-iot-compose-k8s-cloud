@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Agri-IoT">
+  <rect width="512" height="512" rx="96" fill="#2e7d32"/>
+  <path d="M256 96c-70 64-120 120-120 192a120 120 0 0 0 240 0c0-72-50-128-120-192z" fill="#a5d6a7"/>
+  <path d="M256 168c-44 42-76 80-76 124a76 76 0 0 0 152 0c0-44-32-82-76-124z" fill="#ffffff" opacity="0.9"/>
+  <circle cx="256" cy="300" r="26" fill="#2e7d32"/>
+</svg>

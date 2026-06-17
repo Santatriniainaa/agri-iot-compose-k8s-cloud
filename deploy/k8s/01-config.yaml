@@ -28,6 +28,14 @@ data:
   WINDOW_SECONDS: "5"
   MOISTURE_THRESHOLD: "30"
   RAIN_SKIP_MM: "2"
+  # API (FastAPI) — non sensible
+  CORS_ORIGINS: "*"                     # origines autorisées pour la PWA (CSV)
+  API_AUTH_USER: "agri"                 # utilisateur démo (auth JWT)
+  JWT_ALGORITHM: "HS256"
+  JWT_EXPIRE_MINUTES: "720"             # durée de validité du token (12 h)
+  # PWA — URL de l'API vue depuis le NAVIGATEUR (injectée dans config.json au runtime).
+  # NodePort : http://localhost:30800 · Ingress : /api-backend
+  PWA_API_BASE_URL: "http://localhost:30800"
 ---
 apiVersion: v1
 kind: Secret
@@ -44,3 +52,6 @@ stringData:
   # Identifiants MQTT (broker en allow_anonymous=false)
   MQTT_USERNAME: "agri-iot-compose-k8s-cloud"
   MQTT_PASSWORD: "agri-iot-compose-k8s-cloud-mqtt-change-me"
+  # API — auth JWT (sensible)
+  API_AUTH_PASSWORD: "agri-iot-demo"
+  JWT_SECRET: "agri-iot-compose-k8s-cloud-jwt-change-me-0123456789"

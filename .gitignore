@@ -29,6 +29,21 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
+# Couverture de tests
+.coverage
+coverage/
+htmlcov/
+coverage.xml
+
+# Node / Angular (services/pwa)
+node_modules/
+.angular/
+out-tsc/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
 # Modèles ML générés au runtime
 services/api/models/*.pkl
 services/api/__pycache__/

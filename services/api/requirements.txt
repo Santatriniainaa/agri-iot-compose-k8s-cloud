@@ -5,3 +5,7 @@ paho-mqtt==2.1.0
 scikit-learn==1.5.0
 joblib==1.4.2
 numpy==1.26.4
+python-jose[cryptography]==3.3.0
+passlib==1.7.4
+bcrypt==4.0.1        # dernier compatible proprement avec passlib 1.7.4 (>=4.1 retire __about__)
+python-multipart==0.0.9

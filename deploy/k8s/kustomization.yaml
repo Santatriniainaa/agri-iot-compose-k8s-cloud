@@ -27,3 +27,5 @@ resources:
   - 60-api-service.yaml
   - 65-grafana-provisioning.yaml
   - 70-grafana.yaml
+  - 80-pwa.yaml
+  # - 90-ingress.yaml   # optionnel : nécessite un ingress controller (cf. en-tête du fichier)

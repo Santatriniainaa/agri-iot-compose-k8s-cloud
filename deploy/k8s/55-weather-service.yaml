@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: weather-service
-          image: agri-iot-compose-k8s-cloud/weather-service:latest
+          image: agri-iot-compose-k8s-cloud/weather-service:2026-06-17
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef: { name: agri-iot-compose-k8s-cloud-config }

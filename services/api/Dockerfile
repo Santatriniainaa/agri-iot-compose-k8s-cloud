@@ -13,6 +13,10 @@ COPY requirements.txt .
 # --timeout/--retries : robustesse face aux gros wheels (scikit-learn, numpy).
 RUN pip install --timeout 120 --retries 5 -r requirements.txt
 COPY train.py app.py entrypoint.sh ./
+COPY core/ ./core/
+COPY services/ ./services/
+COPY schemas/ ./schemas/
+COPY routers/ ./routers/
 
 # Utilisateur non privilégié + dossier modèles inscriptible par lui.
 RUN chmod +x entrypoint.sh \
