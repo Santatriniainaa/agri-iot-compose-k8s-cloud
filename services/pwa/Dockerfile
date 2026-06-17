@@ -24,8 +24,10 @@ RUN chmod +x /entrypoint.sh \
 USER 101
 
 EXPOSE 8080
+# 127.0.0.1 (et non localhost) : dans l'image, localhost résout d'abord en ::1 (IPv6)
+# alors que nginx n'écoute qu'en IPv4 → le healthcheck échouerait à tort.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -q --spider http://localhost:8080/ || exit 1
+  CMD wget -q --spider http://127.0.0.1:8080/ || exit 1
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["nginx", "-g", "daemon off;"]

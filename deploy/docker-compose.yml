@@ -146,7 +146,7 @@ services:
   # 4) Edge service (filtrage / agrégation / anomalies / décision) -------
   edge-service:
     build: ./services/edge
-    image: agri-iot-compose-k8s-cloud/edge-service:latest   # tag partagé avec les manifests k8s
+    image: agri-iot-compose-k8s-cloud/edge-service:2026-06-17   # tag daté, partagé avec les manifests k8s
     container_name: agri-iot-compose-k8s-cloud-edge
     init: true                 # tini : transmission propre de SIGTERM + reaping
     restart: unless-stopped
@@ -167,7 +167,7 @@ services:
   # 5) Sensor simulators (capteurs émulés) -------------------------------
   sensor-simulator:
     build: ./services/simulator
-    image: agri-iot-compose-k8s-cloud/sensor-simulator:latest   # tag partagé avec les manifests k8s
+    image: agri-iot-compose-k8s-cloud/sensor-simulator:2026-06-17   # tag daté, partagé avec les manifests k8s
     container_name: agri-iot-compose-k8s-cloud-sensor-simulator
     # NB : container_name fixe → un seul réplica. Pour `make scale sensor-simulator=N`,
     # commenter cette ligne (Docker exige un nom unique par conteneur).
@@ -191,7 +191,7 @@ services:
   # 5b) Weather service (API météo Open-Meteo → MQTT) -------------------
   weather-service:
     build: ./services/weather
-    image: agri-iot-compose-k8s-cloud/weather-service:latest   # tag partagé avec les manifests k8s
+    image: agri-iot-compose-k8s-cloud/weather-service:2026-06-17   # tag daté, partagé avec les manifests k8s
     container_name: agri-iot-compose-k8s-cloud-weather
     init: true                 # tini : transmission propre de SIGTERM + reaping
     restart: unless-stopped
@@ -280,6 +280,14 @@ services:
     environment:
       # URL de l'API vue depuis le NAVIGATEUR (injectée au runtime dans config.json).
       API_BASE_URL: ${PWA_API_BASE_URL:-http://localhost:8000}
+    # Override du healthcheck de l'image : 127.0.0.1 (IPv4) car `localhost` résout
+    # d'abord en ::1 dans le conteneur, où nginx n'écoute qu'en IPv4.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
     networks: [agri-iot-compose-k8s-cloud]
     logging: *default-logging
 
