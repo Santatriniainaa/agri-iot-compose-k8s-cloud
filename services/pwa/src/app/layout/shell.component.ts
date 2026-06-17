@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { SwUpdate, VersionReadyEvent } from '@angular/service-worker';
 import { MatIconModule } from '@angular/material/icon';
@@ -15,6 +15,7 @@ import { ConnectivityService } from '../core/services/connectivity.service';
   selector: 'app-shell',
   standalone: true,
   imports: [RouterOutlet, RouterLink, RouterLinkActive, MatIconModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <header class="topbar">
       <span class="title"><mat-icon>eco</mat-icon> Agri-IoT</span>

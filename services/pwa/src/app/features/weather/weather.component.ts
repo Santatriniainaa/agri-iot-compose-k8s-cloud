@@ -1,5 +1,5 @@
 import { DecimalPipe } from '@angular/common';
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 
 import { ApiService } from '../../core/services/api.service';
@@ -13,6 +13,7 @@ import { Weather } from '../../core/models/api.models';
   selector: 'app-weather',
   standalone: true,
   imports: [DecimalPipe, MatIconModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <header class="head">
       <h1>Météo du site</h1>

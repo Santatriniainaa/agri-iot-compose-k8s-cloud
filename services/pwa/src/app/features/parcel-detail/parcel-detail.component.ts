@@ -1,5 +1,5 @@
 import { DecimalPipe } from '@angular/common';
-import { Component, computed, effect, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 
@@ -26,6 +26,7 @@ interface RangeChoice {
   selector: 'app-parcel-detail',
   standalone: true,
   imports: [RouterLink, DecimalPipe, LineChartComponent, MatIconModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <header class="head">
       <a routerLink="/parcels" class="back" aria-label="Retour"><mat-icon>arrow_back</mat-icon></a>

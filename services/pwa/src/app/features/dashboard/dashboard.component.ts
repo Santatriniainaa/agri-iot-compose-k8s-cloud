@@ -1,5 +1,5 @@
 import { DecimalPipe } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 
@@ -15,6 +15,7 @@ import { Overview } from '../../core/models/api.models';
   selector: 'app-dashboard',
   standalone: true,
   imports: [RouterLink, DecimalPipe, MatIconModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div
       class="ptr"

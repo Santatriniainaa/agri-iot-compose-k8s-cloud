@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 
 import { ApiService } from '../../core/services/api.service';
@@ -9,6 +9,7 @@ import { AlertItem } from '../../core/models/api.models';
   selector: 'app-alerts',
   standalone: true,
   imports: [MatIconModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <header class="head">
       <h1>Alertes</h1>
@@ -25,9 +26,11 @@ import { AlertItem } from '../../core/models/api.models';
               <span class="time">{{ formatTime(a.ts) }}</span>
             </div>
             <p class="reason">{{ a.reason ?? 'Alerte' }}</p>
-            @if (a.recommendation?.action === 'irrigate') {
-              <p class="reco"><mat-icon>water_drop</mat-icon> Irriguer {{ a.recommendation?.minutes }} min
-                (~{{ a.recommendation?.volume_l_m2 }} L/m²)</p>
+            @if (a.recommendation; as reco) {
+              @if (reco.action === 'irrigate') {
+                <p class="reco"><mat-icon>water_drop</mat-icon> Irriguer {{ reco.minutes }} min
+                  (~{{ reco.volume_l_m2 }} L/m²)</p>
+              }
             }
           </li>
         }

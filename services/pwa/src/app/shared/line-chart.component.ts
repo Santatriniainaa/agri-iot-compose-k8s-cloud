@@ -1,4 +1,4 @@
-import { Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
 /**
  * Mini-graphe en courbe (SVG, sans dépendance externe), adapté au mobile.
@@ -7,6 +7,7 @@ import { Component, computed, input } from '@angular/core';
 @Component({
   selector: 'app-line-chart',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (line(); as d) {
       <svg viewBox="0 0 300 100" preserveAspectRatio="none" class="chart" role="img"
