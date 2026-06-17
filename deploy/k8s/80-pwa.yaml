@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: pwa
-          image: agri-iot-compose-k8s-cloud/pwa:latest
+          image: agri-iot-compose-k8s-cloud/pwa:2026-06-17
           imagePullPolicy: IfNotPresent
           ports:
             - { containerPort: 8080, name: http }

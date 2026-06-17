@@ -168,9 +168,9 @@ services:
   sensor-simulator:
     build: ./services/simulator
     image: agri-iot-compose-k8s-cloud/sensor-simulator:latest   # tag partagé avec les manifests k8s
-    # Pas de container_name : Docker exige un nom unique par conteneur, ce qui
-    # interdirait `--scale sensor-simulator=N` (cf. make scale). Compose nomme
-    # alors les réplicas <projet>-sensor-simulator-1, -2, … automatiquement.
+    container_name: agri-iot-compose-k8s-cloud-sensor-simulator
+    # NB : container_name fixe → un seul réplica. Pour `make scale sensor-simulator=N`,
+    # commenter cette ligne (Docker exige un nom unique par conteneur).
     init: true                 # tini : transmission propre de SIGTERM + reaping
     restart: unless-stopped
     depends_on:
@@ -213,7 +213,7 @@ services:
   # 6) API / ML service (recommandations, prévision de rendement) --------
   api-service:
     build: ./services/api
-    image: agri-iot-compose-k8s-cloud/api-service:latest   # tag partagé avec les manifests k8s
+    image: agri-iot-compose-k8s-cloud/api-service:2026-06-17   # tag daté, partagé avec les manifests k8s
     container_name: agri-iot-compose-k8s-cloud-api
     init: true                 # tini : transmission propre de SIGTERM + reaping
     restart: unless-stopped
@@ -269,7 +269,7 @@ services:
   # 8) PWA (application mobile Angular servie par Nginx) -----------------
   pwa:
     build: ./services/pwa
-    image: agri-iot-compose-k8s-cloud/pwa:latest   # tag partagé avec les manifests k8s
+    image: agri-iot-compose-k8s-cloud/pwa:2026-06-17   # tag daté, partagé avec les manifests k8s
     container_name: agri-iot-compose-k8s-cloud-pwa
     restart: unless-stopped
     depends_on:

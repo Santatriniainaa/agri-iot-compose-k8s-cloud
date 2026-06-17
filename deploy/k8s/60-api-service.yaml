@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: api-service
-          image: agri-iot-compose-k8s-cloud/api-service:latest
+          image: agri-iot-compose-k8s-cloud/api-service:2026-06-17
           imagePullPolicy: IfNotPresent
           ports:
             - { containerPort: 8000, name: http }
