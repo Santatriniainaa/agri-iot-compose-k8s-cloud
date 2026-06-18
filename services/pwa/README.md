@@ -77,7 +77,7 @@ docker run --rm -p 8080:8080 -e API_BASE_URL=http://localhost:8000 \
 
 ## Déploiement
 
-- **Docker Compose** : service `pwa` (cf. `deploy/docker-compose.yml`), `PWA_API_BASE_URL`
+- **Docker Compose** : service `pwa` (cf. `deploy/compose/docker-compose.yml`), `PWA_API_BASE_URL`
   injecté dans `config.json`.
 - **Kubernetes** : `Deployment` + `Service` + `HPA` (`deploy/k8s/80-pwa.yaml`) et `Ingress`
   (`deploy/k8s/90-ingress.yaml`) servant PWA (`/`) et API (`/api-backend`) en **même origine**.

@@ -2,15 +2,15 @@
 # Usage : make up | make down | make logs | make demo | make scale N=3 | make clean
 # Lancer depuis le dossier agri-iot-compose-k8s-cloud/.
 
-# Le fichier compose est sous deploy/ ; --project-directory . garde les chemins
+# Le fichier compose est sous deploy/compose/ ; --project-directory . garde les chemins
 # ./services et ./infra relatifs à agri-iot-compose-k8s-cloud/ et charge .env depuis ici.
 # PROFILES : profils compose actifs. Dev = "demo" (inclut le sensor-simulator,
 # générateur de données synthétiques). Override : `make up PROFILES=`.
 PROFILES ?= demo
-COMPOSE = COMPOSE_PROFILES="$(PROFILES)" docker compose -f deploy/docker-compose.yml --project-directory .
+COMPOSE = COMPOSE_PROFILES="$(PROFILES)" docker compose -f deploy/compose/docker-compose.yml --project-directory .
 # Overlay PRODUCTION : superpose docker-compose.prod.yml, SANS le profil demo
 # (pas de simulateur ; les vrais capteurs alimentent le broker).
-COMPOSE_PROD = docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.prod.yml --project-directory .
+COMPOSE_PROD = docker compose -f deploy/compose/docker-compose.yml -f deploy/compose/docker-compose.prod.yml --project-directory .
 K8S      = deploy/k8s
 CLUSTER  = agri-iot-compose-k8s-cloud
 NS       = agri-iot-compose-k8s-cloud

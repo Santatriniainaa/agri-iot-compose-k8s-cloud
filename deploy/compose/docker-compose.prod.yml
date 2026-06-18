@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────
-# Overlay PRODUCTION — se superpose à deploy/docker-compose.yml.
+# Overlay PRODUCTION — se superpose à deploy/compose/docker-compose.yml.
 #   make prod-up   ≡  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 #
 # Différences clés vs développement :

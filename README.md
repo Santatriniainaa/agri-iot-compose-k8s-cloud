@@ -79,9 +79,9 @@ cp .env.example .env          # ajuste les paramètres si besoin
 make up                       # build + démarrage de la stack
 ```
 
-> Le fichier compose est sous `deploy/` ; `make` l'invoque avec `--project-directory .` pour garder
+> Le fichier compose est sous `deploy/compose/` ; `make` l'invoque avec `--project-directory .` pour garder
 > les chemins `./services` et `./infra` relatifs à la racine.
-> Équivalent direct : `docker compose -f deploy/docker-compose.yml --project-directory . up -d --build`.
+> Équivalent direct : `docker compose -f deploy/compose/docker-compose.yml --project-directory . up -d --build`.
 
 Patienter ~30–60 s (build + initialisation d'InfluxDB et entraînement du modèle ML), puis :
 
@@ -190,7 +190,7 @@ curl http://localhost:8000/api/predict/yield/zoneA
 | | **Docker Compose** (dev) | **Kubernetes** (orchestration) |
 |---|--------------------------|--------------------------------|
 | **Cible** | poste local, démo rapide | cluster (kind / minikube / k3d) |
-| **Définition** | [`deploy/docker-compose.yml`](deploy/docker-compose.yml) | [`deploy/k8s/`](deploy/k8s/) (kustomize) |
+| **Définition** | [`deploy/compose/docker-compose.yml`](deploy/compose/docker-compose.yml) | [`deploy/k8s/`](deploy/k8s/) (kustomize) |
 | **Config / secrets** | `.env` | `ConfigMap` + `Secret` |
 | **Persistance** | volumes Docker | `PersistentVolumeClaim` |
 | **Mise à l'échelle** | `--scale` (manuel) | **HPA** (autoscaling CPU) + probes, requests/limits |
@@ -472,7 +472,7 @@ $COMPOSE exec -T influxdb influx query \
 $COMPOSE exec -T mosquitto mosquitto_sub -t 'agri/#' -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD"
 ```
 
-> `export COMPOSE="docker compose -f deploy/docker-compose.yml --project-directory ."`
+> `export COMPOSE="docker compose -f deploy/compose/docker-compose.yml --project-directory ."`
 
 ---
 
@@ -602,7 +602,9 @@ agri-iot-compose-k8s-cloud/
 │   └── grafana/provisioning/   #   datasources + dashboard auto-provisionnés
 │
 ├── deploy/                     # déploiement
-│   ├── docker-compose.yml      #   orchestration des services (dev)
+│   ├── compose/                #   orchestration Docker Compose (dev + overlay prod)
+│   │   ├── docker-compose.yml       #     stack de développement
+│   │   └── docker-compose.prod.yml  #     overlay production (restart:always, PWA:80…)
 │   └── k8s/                    #   manifests Kubernetes + HPA + kustomize + kind-config
 │
 ├── scripts/
