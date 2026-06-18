@@ -326,7 +326,7 @@ Build **multi-stage** (Node 20 → **Nginx non-root**, uid 101, port 8080). L'UR
 sert ainsi en Docker Compose et en Kubernetes sans recompilation. Stateless → réplicable (Service + HPA).
 
 > Identifiants de démonstration : `agri` / `agri-iot-demo` (paramétrables via `API_AUTH_USER` /
-> `API_AUTH_PASSWORD`). Architecture détaillée : [`docs/adr/0001-pwa-mobile-angular-et-api-v1.md`](docs/adr/0001-pwa-mobile-angular-et-api-v1.md).
+> `API_AUTH_PASSWORD`).
 
 ---
 
@@ -596,8 +596,6 @@ agri-iot-compose-k8s-cloud/
 │   ├── api/                    #   API REST + ML (FastAPI, routers, schémas, JWT, tests)
 │   └── pwa/                    #   application mobile (Angular 20 + Nginx, PWA)
 │
-├── docs/adr/                   # décisions d'architecture (ADR)
-│
 ├── infra/                      # configuration des briques d'infrastructure
 │   ├── mosquitto/config/       #   broker MQTT
 │   ├── telegraf/               #   ingestion MQTT → InfluxDB
@@ -630,7 +628,7 @@ agri-iot-compose-k8s-cloud/
 - **Application mobile (PWA Angular)** : ✅ *livrée* — client mobile installable (consultation
   parcelles, historique, recommandations, alertes ; voir [§6.7](#67-pwa--application-mobile-pwa-angular))
   au-dessus d'une **API v1** versionnée (CORS, endpoint agrégé `/api/v1/overview`, schémas typés, auth
-  JWT). Cadrage et architecture : [`docs/adr/0001-pwa-mobile-angular-et-api-v1.md`](docs/adr/0001-pwa-mobile-angular-et-api-v1.md).
+  JWT).
   Pistes restantes : TLS/HTTPS, *refresh tokens*, notifications *push*, mode hors-ligne enrichi.
 
 ---

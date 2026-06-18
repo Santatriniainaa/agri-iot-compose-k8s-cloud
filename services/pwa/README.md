@@ -1,11 +1,8 @@
 # PWA mobile — Agri-IoT
 
 Application **mobile-first** (Angular 20, standalone + lazy-loading) de supervision des
-parcelles : tableau de bord, détail parcelle (recommandation d'irrigation + rendement ML +
-historique), alertes. Installable et utilisable hors-ligne (service worker).
-
-Voir l'[ADR 0001](../../docs/adr/0001-pwa-mobile-angular-et-api-v1.md) pour le contexte et les
-décisions d'architecture.
+parcelles : accueil, parcelles, détail parcelle (recommandation d'irrigation + rendement ML +
+historique), météo et alertes. Installable et utilisable hors-ligne (service worker).
 
 ## Architecture
 
