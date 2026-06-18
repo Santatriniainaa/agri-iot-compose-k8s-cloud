@@ -41,13 +41,22 @@ x-res-db: &res-db           # InfluxDB (TSDB)
       limits:       { cpus: "1.50", memory: 1G }
       reservations: { cpus: "0.25", memory: 256M }
 
+# Durcissement runtime. *nnp : empêche l'escalade de privilèges (images tierces
+# qui dropent elles-mêmes leurs privilèges). *hardening : en plus, supprime
+# toutes les capabilities Linux (services applicatifs non-root, aucune requise).
+x-nnp: &nnp
+  security_opt: ["no-new-privileges:true"]
+x-hardening: &hardening
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: ["ALL"]
+
 services:
 
   # 1) Broker MQTT --------------------------------------------------------
   mosquitto:
     image: eclipse-mosquitto:2
     container_name: agri-iot-compose-k8s-cloud-mosquitto
-    <<: *res-small
+    <<: [*res-small, *nnp]
     restart: unless-stopped
     ports:
       - "1883:1883"      # MQTT
@@ -72,7 +81,7 @@ services:
     volumes:
       - ./infra/mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - mosquitto_data:/mosquitto/data
-    networks: [agri-iot-compose-k8s-cloud]
+    networks: [frontend, backend]
     logging: *default-logging
     healthcheck:
       test: ["CMD-SHELL", "mosquitto_sub -t '$$SYS/#' -C 1 -W 3 -h localhost -u \"$$MQTT_USERNAME\" -P \"$$MQTT_PASSWORD\" || exit 1"]
@@ -84,10 +93,12 @@ services:
   influxdb:
     image: influxdb:2.7
     container_name: agri-iot-compose-k8s-cloud-influxdb
-    <<: *res-db
+    <<: [*res-db, *nnp]
     restart: unless-stopped
     ports:
-      - "8086:8086"
+      # Exposé uniquement sur la boucle locale (admin/CLI) : pas d'accès depuis
+      # les autres interfaces de l'hôte. Les services le joignent via le réseau backend.
+      - "127.0.0.1:8086:8086"
     environment:
       DOCKER_INFLUXDB_INIT_MODE: setup
       DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUX_USERNAME}
@@ -98,7 +109,7 @@ services:
       DOCKER_INFLUXDB_INIT_RETENTION: ${INFLUX_RETENTION}      # rétention du bucket brut
     volumes:
       - influxdb_data:/var/lib/influxdb2
-    networks: [agri-iot-compose-k8s-cloud]
+    networks: [frontend, backend]
     logging: *default-logging
     healthcheck:
       test: ["CMD", "influx", "ping"]
@@ -112,6 +123,7 @@ services:
   influx-init:
     image: influxdb:2.7
     container_name: agri-iot-compose-k8s-cloud-influx-init
+    <<: *nnp
     restart: "no"
     depends_on:
       influxdb:
@@ -145,14 +157,14 @@ services:
           influx task create --file /tmp/downsample.flux
         fi
         echo "[influx-init] terminé"
-    networks: [agri-iot-compose-k8s-cloud]
+    networks: [backend]
     logging: *default-logging
 
   # 3) Ingestion MQTT → InfluxDB -----------------------------------------
   telegraf:
     image: telegraf:1.30
     container_name: agri-iot-compose-k8s-cloud-telegraf
-    <<: *res-small
+    <<: [*res-small, *nnp]
     restart: unless-stopped
     depends_on:
       influxdb:
@@ -167,7 +179,7 @@ services:
       MQTT_PASSWORD: ${MQTT_PASSWORD}
     volumes:
       - ./infra/telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
-    networks: [agri-iot-compose-k8s-cloud]
+    networks: [backend]
     logging: *default-logging
 
   # 4) Edge service (filtrage / agrégation / anomalies / décision) -------
@@ -175,7 +187,9 @@ services:
     build: ./services/edge
     image: agri-iot-compose-k8s-cloud/edge-service:${IMAGE_TAG:-2026-06-17}   # tag partagé avec les manifests k8s
     container_name: agri-iot-compose-k8s-cloud-edge
-    <<: *res-tiny
+    <<: [*res-tiny, *hardening]
+    read_only: true            # rootfs en lecture seule (service sans état)
+    tmpfs: ["/tmp"]
     init: true                 # tini : transmission propre de SIGTERM + reaping
     restart: unless-stopped
     depends_on:
@@ -189,6 +203,7 @@ services:
       WINDOW_SECONDS: ${WINDOW_SECONDS}
       MOISTURE_THRESHOLD: ${MOISTURE_THRESHOLD}
       RAIN_SKIP_MM: ${RAIN_SKIP_MM}
+    networks: [backend]
     # Liveness sans dépendance externe : vérifie la joignabilité TCP du broker
     # (proxy de santé pour un service MQTT sans port HTTP).
     healthcheck:
@@ -197,7 +212,6 @@ services:
       timeout: 5s
       start_period: 10s
       retries: 3
-    networks: [agri-iot-compose-k8s-cloud]
     logging: *default-logging
 
   # 5) Sensor simulators (capteurs émulés) -------------------------------
@@ -207,7 +221,9 @@ services:
     container_name: agri-iot-compose-k8s-cloud-sensor-simulator
     # NB : container_name fixe → un seul réplica. Pour `make scale N=...`,
     # commenter cette ligne (Docker exige un nom unique par conteneur).
-    <<: *res-tiny
+    <<: [*res-tiny, *hardening]
+    read_only: true            # rootfs en lecture seule (service sans état)
+    tmpfs: ["/tmp"]
     init: true                 # tini : transmission propre de SIGTERM + reaping
     restart: unless-stopped
     depends_on:
@@ -222,13 +238,13 @@ services:
       PARCELS: ${PARCELS}
       PUBLISH_INTERVAL: ${PUBLISH_INTERVAL}
       ANOMALY_PROB: ${ANOMALY_PROB}
+    networks: [backend]
     healthcheck:
       test: ["CMD", "python", "-c", "import socket,os; socket.create_connection((os.environ['MQTT_HOST'], int(os.environ['MQTT_PORT'])), 3)"]
       interval: 30s
       timeout: 5s
       start_period: 10s
       retries: 3
-    networks: [agri-iot-compose-k8s-cloud]
     logging: *default-logging
 
   # 5b) Weather service (API météo Open-Meteo → MQTT) -------------------
@@ -236,7 +252,9 @@ services:
     build: ./services/weather
     image: agri-iot-compose-k8s-cloud/weather-service:${IMAGE_TAG:-2026-06-17}   # tag partagé avec les manifests k8s
     container_name: agri-iot-compose-k8s-cloud-weather
-    <<: *res-tiny
+    <<: [*res-tiny, *hardening]
+    read_only: true            # rootfs en lecture seule (service sans état)
+    tmpfs: ["/tmp"]
     init: true                 # tini : transmission propre de SIGTERM + reaping
     restart: unless-stopped
     depends_on:
@@ -251,13 +269,15 @@ services:
       WEATHER_LAT: ${WEATHER_LAT}
       WEATHER_LON: ${WEATHER_LON}
       WEATHER_POLL_INTERVAL: ${WEATHER_POLL_INTERVAL}
+    # frontend : ce service a besoin d'un accès internet (API Open-Meteo) et
+    # joint le broker mosquitto (lui aussi sur frontend). Pas sur backend (internal).
+    networks: [frontend]
     healthcheck:
       test: ["CMD", "python", "-c", "import socket,os; socket.create_connection((os.environ['MQTT_HOST'], int(os.environ['MQTT_PORT'])), 3)"]
       interval: 30s
       timeout: 5s
       start_period: 10s
       retries: 3
-    networks: [agri-iot-compose-k8s-cloud]
     logging: *default-logging
 
   # 6) API / ML service (recommandations, prévision de rendement) --------
@@ -265,7 +285,9 @@ services:
     build: ./services/api
     image: agri-iot-compose-k8s-cloud/api-service:${IMAGE_TAG:-2026-06-17}   # tag partagé avec les manifests k8s
     container_name: agri-iot-compose-k8s-cloud-api
-    <<: *res-api
+    <<: [*res-api, *hardening]
+    read_only: true            # rootfs en lecture seule…
+    tmpfs: ["/tmp"]            # …sauf /tmp (joblib) et le volume modèles ci-dessous
     init: true                 # tini : transmission propre de SIGTERM + reaping
     restart: unless-stopped
     depends_on:
@@ -284,20 +306,25 @@ services:
       MQTT_PORT: ${MQTT_PORT}
       MQTT_USERNAME: ${MQTT_USERNAME}
       MQTT_PASSWORD: ${MQTT_PASSWORD}
-      CORS_ORIGINS: ${CORS_ORIGINS:-*}
-      API_AUTH_USER: ${API_AUTH_USER:-agri}
-      API_AUTH_PASSWORD: ${API_AUTH_PASSWORD:-agri-iot-demo}
-      JWT_SECRET: ${JWT_SECRET:-agri-iot-compose-k8s-cloud-jwt-change-me-0123456789}
+      # Pas de défaut sensible en dur : ces valeurs DOIVENT venir du .env.
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      API_AUTH_USER: ${API_AUTH_USER}
+      API_AUTH_PASSWORD: ${API_AUTH_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-720}
-    networks: [agri-iot-compose-k8s-cloud]
+    # Modèle ML persistant + inscriptible malgré le rootfs en lecture seule
+    # (entraîné au 1er démarrage par entrypoint.sh, réutilisé ensuite).
+    volumes:
+      - api_models:/app/models
+    networks: [frontend, backend]
     logging: *default-logging
 
   # 7) Grafana (visualisation) -------------------------------------------
   grafana:
     image: grafana/grafana:11.1.0
     container_name: agri-iot-compose-k8s-cloud-grafana
-    <<: *res-small
+    <<: [*res-small, *nnp]
     restart: unless-stopped
     depends_on:
       influxdb:
@@ -315,7 +342,7 @@ services:
     volumes:
       - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana_data:/var/lib/grafana
-    networks: [agri-iot-compose-k8s-cloud]
+    networks: [frontend, backend]
     logging: *default-logging
 
   # 8) PWA (application mobile Angular servie par Nginx) -----------------
@@ -323,7 +350,8 @@ services:
     build: ./services/pwa
     image: agri-iot-compose-k8s-cloud/pwa:${IMAGE_TAG:-2026-06-17}   # tag partagé avec les manifests k8s
     container_name: agri-iot-compose-k8s-cloud-pwa
-    <<: *res-small
+    # Pas de read_only : l'entrypoint génère config.json dans le webroot.
+    <<: [*res-small, *hardening]
     restart: unless-stopped
     depends_on:
       api-service:
@@ -341,14 +369,22 @@ services:
       timeout: 5s
       start_period: 10s
       retries: 3
-    networks: [agri-iot-compose-k8s-cloud]
+    networks: [frontend]
     logging: *default-logging
 
+# Segmentation réseau :
+#  • frontend : services exposés sur l'hôte + accès internet (météo).
+#  • backend  : plan de données interne (broker, TSDB, ingestion, edge…).
+#    internal:true ⇒ pas de route vers l'extérieur (isolation de la base).
 networks:
-  agri-iot-compose-k8s-cloud:
+  frontend:
     driver: bridge
+  backend:
+    driver: bridge
+    internal: true
 
 volumes:
   mosquitto_data:
   influxdb_data:
   grafana_data:
+  api_models:
