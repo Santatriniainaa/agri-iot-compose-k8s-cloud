@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 # ─── Étape 1 : build des wheels (deps lourdes : scikit-learn, numpy) ──────────
 # Compilées/téléchargées une seule fois ; cache pip BuildKit → rebuilds rapides.
 FROM python:3.12-slim AS builder
