@@ -17,12 +17,37 @@ x-logging: &default-logging
     max-size: "10m"
     max-file: "3"
 
+# Bornes de ressources (lues par `docker compose` v2 hors swarm) : protègent
+# l'hôte d'un runaway (OOM), donnent du QoS et une base saine pour scaler.
+# reservations = garanties planificateur ; limits = plafond dur.
+x-res-tiny: &res-tiny       # publishers/consumers MQTT (edge, simulateur, météo)
+  deploy:
+    resources:
+      limits:       { cpus: "0.50", memory: 192M }
+      reservations: { cpus: "0.05", memory: 32M }
+x-res-small: &res-small     # broker, telegraf, grafana, pwa
+  deploy:
+    resources:
+      limits:       { cpus: "0.75", memory: 384M }
+      reservations: { cpus: "0.10", memory: 64M }
+x-res-api: &res-api         # API + ML (numpy/scikit-learn)
+  deploy:
+    resources:
+      limits:       { cpus: "1.50", memory: 1G }
+      reservations: { cpus: "0.25", memory: 256M }
+x-res-db: &res-db           # InfluxDB (TSDB)
+  deploy:
+    resources:
+      limits:       { cpus: "1.50", memory: 1G }
+      reservations: { cpus: "0.25", memory: 256M }
+
 services:
 
   # 1) Broker MQTT --------------------------------------------------------
   mosquitto:
     image: eclipse-mosquitto:2
     container_name: agri-iot-compose-k8s-cloud-mosquitto
+    <<: *res-small
     restart: unless-stopped
     ports:
       - "1883:1883"      # MQTT
@@ -59,6 +84,7 @@ services:
   influxdb:
     image: influxdb:2.7
     container_name: agri-iot-compose-k8s-cloud-influxdb
+    <<: *res-db
     restart: unless-stopped
     ports:
       - "8086:8086"
@@ -126,12 +152,13 @@ services:
   telegraf:
     image: telegraf:1.30
     container_name: agri-iot-compose-k8s-cloud-telegraf
+    <<: *res-small
     restart: unless-stopped
     depends_on:
       influxdb:
         condition: service_healthy
       mosquitto:
-        condition: service_started
+        condition: service_healthy
     environment:
       INFLUX_TOKEN: ${INFLUX_TOKEN}
       INFLUX_ORG: ${INFLUX_ORG}
@@ -146,13 +173,14 @@ services:
   # 4) Edge service (filtrage / agrégation / anomalies / décision) -------
   edge-service:
     build: ./services/edge
-    image: agri-iot-compose-k8s-cloud/edge-service:2026-06-17   # tag daté, partagé avec les manifests k8s
+    image: agri-iot-compose-k8s-cloud/edge-service:${IMAGE_TAG:-2026-06-17}   # tag partagé avec les manifests k8s
     container_name: agri-iot-compose-k8s-cloud-edge
+    <<: *res-tiny
     init: true                 # tini : transmission propre de SIGTERM + reaping
     restart: unless-stopped
     depends_on:
       mosquitto:
-        condition: service_started
+        condition: service_healthy
     environment:
       MQTT_HOST: ${MQTT_HOST}
       MQTT_PORT: ${MQTT_PORT}
@@ -161,21 +189,30 @@ services:
       WINDOW_SECONDS: ${WINDOW_SECONDS}
       MOISTURE_THRESHOLD: ${MOISTURE_THRESHOLD}
       RAIN_SKIP_MM: ${RAIN_SKIP_MM}
+    # Liveness sans dépendance externe : vérifie la joignabilité TCP du broker
+    # (proxy de santé pour un service MQTT sans port HTTP).
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket,os; socket.create_connection((os.environ['MQTT_HOST'], int(os.environ['MQTT_PORT'])), 3)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
     networks: [agri-iot-compose-k8s-cloud]
     logging: *default-logging
 
   # 5) Sensor simulators (capteurs émulés) -------------------------------
   sensor-simulator:
     build: ./services/simulator
-    image: agri-iot-compose-k8s-cloud/sensor-simulator:2026-06-17   # tag daté, partagé avec les manifests k8s
+    image: agri-iot-compose-k8s-cloud/sensor-simulator:${IMAGE_TAG:-2026-06-17}   # tag partagé avec les manifests k8s
     container_name: agri-iot-compose-k8s-cloud-sensor-simulator
-    # NB : container_name fixe → un seul réplica. Pour `make scale sensor-simulator=N`,
+    # NB : container_name fixe → un seul réplica. Pour `make scale N=...`,
     # commenter cette ligne (Docker exige un nom unique par conteneur).
+    <<: *res-tiny
     init: true                 # tini : transmission propre de SIGTERM + reaping
     restart: unless-stopped
     depends_on:
       mosquitto:
-        condition: service_started
+        condition: service_healthy
     environment:
       MQTT_HOST: ${MQTT_HOST}
       MQTT_PORT: ${MQTT_PORT}
@@ -185,19 +222,26 @@ services:
       PARCELS: ${PARCELS}
       PUBLISH_INTERVAL: ${PUBLISH_INTERVAL}
       ANOMALY_PROB: ${ANOMALY_PROB}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket,os; socket.create_connection((os.environ['MQTT_HOST'], int(os.environ['MQTT_PORT'])), 3)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
     networks: [agri-iot-compose-k8s-cloud]
     logging: *default-logging
 
   # 5b) Weather service (API météo Open-Meteo → MQTT) -------------------
   weather-service:
     build: ./services/weather
-    image: agri-iot-compose-k8s-cloud/weather-service:2026-06-17   # tag daté, partagé avec les manifests k8s
+    image: agri-iot-compose-k8s-cloud/weather-service:${IMAGE_TAG:-2026-06-17}   # tag partagé avec les manifests k8s
     container_name: agri-iot-compose-k8s-cloud-weather
+    <<: *res-tiny
     init: true                 # tini : transmission propre de SIGTERM + reaping
     restart: unless-stopped
     depends_on:
       mosquitto:
-        condition: service_started
+        condition: service_healthy
     environment:
       MQTT_HOST: ${MQTT_HOST}
       MQTT_PORT: ${MQTT_PORT}
@@ -207,21 +251,28 @@ services:
       WEATHER_LAT: ${WEATHER_LAT}
       WEATHER_LON: ${WEATHER_LON}
       WEATHER_POLL_INTERVAL: ${WEATHER_POLL_INTERVAL}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket,os; socket.create_connection((os.environ['MQTT_HOST'], int(os.environ['MQTT_PORT'])), 3)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
     networks: [agri-iot-compose-k8s-cloud]
     logging: *default-logging
 
   # 6) API / ML service (recommandations, prévision de rendement) --------
   api-service:
     build: ./services/api
-    image: agri-iot-compose-k8s-cloud/api-service:2026-06-17   # tag daté, partagé avec les manifests k8s
+    image: agri-iot-compose-k8s-cloud/api-service:${IMAGE_TAG:-2026-06-17}   # tag partagé avec les manifests k8s
     container_name: agri-iot-compose-k8s-cloud-api
+    <<: *res-api
     init: true                 # tini : transmission propre de SIGTERM + reaping
     restart: unless-stopped
     depends_on:
       influxdb:
         condition: service_healthy
       mosquitto:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "8000:8000"
     environment:
@@ -246,6 +297,7 @@ services:
   grafana:
     image: grafana/grafana:11.1.0
     container_name: agri-iot-compose-k8s-cloud-grafana
+    <<: *res-small
     restart: unless-stopped
     depends_on:
       influxdb:
@@ -269,12 +321,13 @@ services:
   # 8) PWA (application mobile Angular servie par Nginx) -----------------
   pwa:
     build: ./services/pwa
-    image: agri-iot-compose-k8s-cloud/pwa:2026-06-17   # tag daté, partagé avec les manifests k8s
+    image: agri-iot-compose-k8s-cloud/pwa:${IMAGE_TAG:-2026-06-17}   # tag partagé avec les manifests k8s
     container_name: agri-iot-compose-k8s-cloud-pwa
+    <<: *res-small
     restart: unless-stopped
     depends_on:
       api-service:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "8080:8080"
     environment:
