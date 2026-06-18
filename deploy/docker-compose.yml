@@ -186,6 +186,9 @@ services:
   edge-service:
     build: ./services/edge
     image: agri-iot-compose-k8s-cloud/edge-service:${IMAGE_TAG:-2026-06-17}   # tag partagé avec les manifests k8s
+    # Singleton : non réplicable tel quel (client_id MQTT fixe → collision).
+    # Pour scaler : rendre le client_id unique par réplique (edge.py) — le
+    # $share/edge/... répartit déjà la charge côté broker.
     container_name: agri-iot-compose-k8s-cloud-edge
     <<: [*res-tiny, *hardening]
     read_only: true            # rootfs en lecture seule (service sans état)
@@ -218,9 +221,11 @@ services:
   sensor-simulator:
     build: ./services/simulator
     image: agri-iot-compose-k8s-cloud/sensor-simulator:${IMAGE_TAG:-2026-06-17}   # tag partagé avec les manifests k8s
-    container_name: agri-iot-compose-k8s-cloud-sensor-simulator
-    # NB : container_name fixe → un seul réplica. Pour `make scale N=...`,
-    # commenter cette ligne (Docker exige un nom unique par conteneur).
+    # Pas de container_name : Docker nomme les répliques <projet>-sensor-simulator-N.
+    # Réplicable nativement (client_id MQTT aléatoire, sans état) : `make scale N=3`
+    # simule davantage de capteurs. Profil "demo" : générateur de données
+    # synthétiques, désactivé en prod (les vrais capteurs alimentent le broker).
+    profiles: ["demo"]
     <<: [*res-tiny, *hardening]
     read_only: true            # rootfs en lecture seule (service sans état)
     tmpfs: ["/tmp"]

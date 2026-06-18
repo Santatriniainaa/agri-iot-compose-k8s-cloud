@@ -1,0 +1,58 @@
+# ──────────────────────────────────────────────────────────────────────────
+# Overlay PRODUCTION — se superpose à deploy/docker-compose.yml.
+#   make prod-up   ≡  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Différences clés vs développement :
+#   • restart: always (résilience hôte/redémarrage).
+#   • pull_policy: missing → on N'UTILISE PAS le build à chaud : les images sont
+#     construites en CI puis poussées sur un registre (cf. IMAGE_TAG). En local,
+#     `make build` (ou `make prod-build`) les fabrique au préalable.
+#   • Aucune exposition hôte des services internes (InfluxDB) : accès via backend.
+#   • PWA servie sur le port standard 80.
+#   • Le profil "demo" (sensor-simulator) n'est PAS activé : en production, les
+#     vrais capteurs alimentent le broker (le simulateur ne tourne pas).
+#
+# !reset : tag Compose qui supprime une clé héritée de la base lors de la fusion.
+# ──────────────────────────────────────────────────────────────────────────
+
+services:
+
+  mosquitto:
+    restart: always
+    pull_policy: missing
+
+  influxdb:
+    restart: always
+    pull_policy: missing
+    ports: !reset []          # plus d'exposition hôte : joignable via le réseau backend
+
+  telegraf:
+    restart: always
+    pull_policy: missing
+
+  edge-service:
+    restart: always
+    pull_policy: missing
+
+  weather-service:
+    restart: always
+    pull_policy: missing
+
+  api-service:
+    restart: always
+    pull_policy: missing
+    # Marge accrue en prod (charge ML + requêtes concurrentes).
+    deploy:
+      resources:
+        limits:       { cpus: "2.00", memory: 1536M }
+        reservations: { cpus: "0.50", memory: 512M }
+
+  grafana:
+    restart: always
+    pull_policy: missing
+
+  pwa:
+    restart: always
+    pull_policy: missing
+    ports: !override
+      - "80:8080"             # port HTTP standard en prod (remplace 8080:8080)
