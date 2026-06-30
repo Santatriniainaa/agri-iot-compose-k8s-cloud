@@ -2,9 +2,15 @@
 # Usage : make up | make down | make logs | make demo | make scale N=3 | make clean
 # Lancer depuis le dossier agri-iot-compose-k8s-cloud/.
 
-# Le fichier compose est sous deploy/ ; --project-directory . garde les chemins
+# Le fichier compose est sous deploy/compose/ ; --project-directory . garde les chemins
 # ./services et ./infra relatifs à agri-iot-compose-k8s-cloud/ et charge .env depuis ici.
-COMPOSE = docker compose -f deploy/docker-compose.yml --project-directory .
+# PROFILES : profils compose actifs. Dev = "demo" (inclut le sensor-simulator,
+# générateur de données synthétiques). Override : `make up PROFILES=`.
+PROFILES ?= demo
+COMPOSE = COMPOSE_PROFILES="$(PROFILES)" docker compose -f deploy/compose/docker-compose.yml --project-directory .
+# Overlay PRODUCTION : superpose docker-compose.prod.yml, SANS le profil demo
+# (pas de simulateur ; les vrais capteurs alimentent le broker).
+COMPOSE_PROD = docker compose -f deploy/compose/docker-compose.yml -f deploy/compose/docker-compose.prod.yml --project-directory .
 K8S      = deploy/k8s
 CLUSTER  = agri-iot-compose-k8s-cloud
 NS       = agri-iot-compose-k8s-cloud
@@ -14,6 +20,7 @@ IMAGES   = edge-service sensor-simulator api-service weather-service
 DEPS_IMAGES = eclipse-mosquitto:2 influxdb:2.7 telegraf:1.30 grafana/grafana:11.1.0
 
 .PHONY: help up down build rebuild start stop restart logs ps services demo smoke test-api test-pwa scale loadtest \
+        prod-build prod-up prod-down prod-ps prod-config \
         k8s-cluster k8s-metrics k8s-load k8s-warmup k8s-deploy k8s-up k8s-status k8s-deploys k8s-forward \
         k8s-start k8s-stop k8s-restart k8s-logs k8s-delete k8s-cluster-delete clean
 
@@ -34,6 +41,12 @@ help:
 	@echo "  make test-pwa - tests unitaires de la PWA (Vitest, en conteneur)"
 	@echo "  make scale N=5- réplique les sensor-simulators (scaling horizontal)"
 	@echo "  make loadtest - load test chiffré (débit/latence/pertes/CPU)"
+	@echo "  --- Production (overlay docker-compose.prod.yml, sans simulateur) ---"
+	@echo "  make prod-build  - construit les images (à pousser sur un registre en CI)"
+	@echo "  make prod-up     - démarre la stack en mode production (restart:always, PWA:80)"
+	@echo "  make prod-down   - arrête la stack production"
+	@echo "  make prod-ps     - état des conteneurs (overlay prod)"
+	@echo "  make prod-config - rend la configuration prod fusionnée (vérification)"
 	@echo "  --- Kubernetes (cluster kind « $(CLUSTER) ») ---"
 	@echo "  make k8s-up      - cluster + metrics-server + build/load images + déploie (tout-en-un)"
 	@echo "  make k8s-cluster - crée le cluster kind (deploy/k8s/kind-config.yaml)"
@@ -119,6 +132,29 @@ scale:
 
 loadtest:
 	./scripts/load-test.sh
+
+# ─── Production (overlay docker-compose.prod.yml) ───────────────────────────
+# Construit les images applicatives (en prod réel : les pousser sur un registre).
+prod-build:
+	$(COMPOSE_PROD) build
+
+# Démarre en mode production : restart:always, pas de simulateur, PWA sur :80,
+# InfluxDB non exposé. Build préalable (pull_policy:missing → pas de rebuild auto).
+prod-up: prod-build
+	@test -f .env || cp .env.example .env
+	$(COMPOSE_PROD) up -d
+	@echo "\n✅ agri-iot-compose-k8s-cloud démarré (PRODUCTION)."
+	@echo "   • PWA : http://localhost  • API : http://localhost:8000/docs"
+
+prod-down:
+	$(COMPOSE_PROD) down
+
+prod-ps:
+	$(COMPOSE_PROD) ps
+
+# Vérifie la configuration prod fusionnée (base + overlay) sans rien démarrer.
+prod-config:
+	$(COMPOSE_PROD) config
 
 # Crée le cluster kind nommé « $(CLUSTER) » → nœud $(CLUSTER)-control-plane.
 # Idempotent : ne recrée pas un cluster déjà présent.

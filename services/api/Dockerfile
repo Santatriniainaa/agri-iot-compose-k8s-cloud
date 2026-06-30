@@ -1,4 +1,15 @@
-FROM python:3.12-slim
+# ─── Étape 1 : build des wheels (deps lourdes : scikit-learn, numpy) ──────────
+# Compilées/téléchargées une seule fois ; cache pip BuildKit → rebuilds rapides.
+FROM python:3.12-slim AS builder
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+WORKDIR /app
+COPY requirements.txt .
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip wheel --timeout 120 --retries 5 --wheel-dir /wheels -r requirements.txt
+
+# ─── Étape 2 : runtime minimal ───────────────────────────────────────────────
+# N'embarque que les wheels pré-construits (pas de compilateur, pas de cache pip).
+FROM python:3.12-slim AS runtime
 
 # Image légère et démarrage propre : pas de bytecode, logs non bufferisés,
 # pas de cache pip ; MODEL_PATH explicite (entraînement au 1er démarrage).
@@ -10,8 +21,10 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 COPY requirements.txt .
-# --timeout/--retries : robustesse face aux gros wheels (scikit-learn, numpy).
-RUN pip install --timeout 120 --retries 5 -r requirements.txt
+COPY --from=builder /wheels /wheels
+# Install hors-ligne depuis les wheels (aucun accès réseau, déterministe).
+RUN pip install --no-index --find-links=/wheels -r requirements.txt \
+ && rm -rf /wheels
 COPY train.py app.py entrypoint.sh ./
 COPY core/ ./core/
 COPY services/ ./services/
