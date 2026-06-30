@@ -1,7 +1,6 @@
 # 🌱 agri-iot-compose-k8s-cloud
 
 > **Plateforme cloud-native d'irrigation intelligente pour l'agriculture connectée (IoT).**
-> Projet final — Cloud Computing (Master / S9).
 >
 > Pipeline de bout en bout : **acquisition** (capteurs) → **edge computing** (filtrage / agrégation /
 > décision) → **ingestion** (MQTT) → **stockage** (*time-series*) → **visualisation** →
