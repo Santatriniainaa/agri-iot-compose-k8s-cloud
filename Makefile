@@ -1,4 +1,4 @@
-# ─── agri-iot-compose-k8s-cloud — raccourcis ───────────────────────────────────────────────
+# ─── agri-iot-compose-k8s-cloud  ───────────────────────────────────────────────
 # Usage : make up | make down | make logs | make demo | make scale N=3 | make clean
 # Lancer depuis le dossier agri-iot-compose-k8s-cloud/.
 
@@ -15,6 +15,7 @@ K8S      = deploy/k8s
 CLUSTER  = agri-iot-compose-k8s-cloud
 NS       = agri-iot-compose-k8s-cloud
 NODE     = $(CLUSTER)-control-plane
+KIND_IMAGE ?= kindest/node:v1.29.2
 IMAGES   = edge-service sensor-simulator api-service weather-service
 # Images tierces (broker, base, ingestion, visualisation) — pré-tirées dans le nœud.
 DEPS_IMAGES = eclipse-mosquitto:2 influxdb:2.7 telegraf:1.30 grafana/grafana:11.1.0
@@ -161,7 +162,7 @@ prod-config:
 k8s-cluster:
 	@kind get clusters 2>/dev/null | grep -qx $(CLUSTER) \
 		&& echo "✓ cluster « $(CLUSTER) » déjà présent" \
-		|| kind create cluster --config $(K8S)/kind-config.yaml
+		|| kind create cluster --image $(KIND_IMAGE) --config $(K8S)/kind-config.yaml
 
 # metrics-server (requis par les HPA). Patch --kubelet-insecure-tls : obligatoire sur kind.
 k8s-metrics:

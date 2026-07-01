@@ -6,6 +6,7 @@ apiVersion: kind.x-k8s.io/v1alpha4
 name: agri-iot-compose-k8s-cloud
 nodes:
   - role: control-plane
+    image: kindest/node:v1.29.2
     # Expose les NodePort du cluster directement sur l'hôte (pas de port-forward) :
     #   API FastAPI → http://localhost:30800/docs · Grafana → http://localhost:30300
     extraPortMappings:

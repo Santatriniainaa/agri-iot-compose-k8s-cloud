@@ -22,13 +22,14 @@ traite les mesures à la volée dans un service *edge* conteneurisé, les ingèr
 *time-series*, les visualise dans Grafana et expose une **API REST** qui **recommande l'irrigation**
 et **prévoit le rendement** par apprentissage automatique.
 
-L'ensemble est **100 % logiciel et conteneurisé — aucun matériel physique requis** (les capteurs
+L'ensemble est **100 % logiciel et conteneurisé, aucun matériel physique requis** (les capteurs
 sont des *sensor simulators*). Le dépôt est **autonome** : il se clone, se build et se déploie seul,
 aussi bien en **Docker Compose** (développement) qu'en **Kubernetes** (orchestration & autoscaling).
 
-> 💡 **Contexte métier.** L'irrigation représente l'essentiel de la consommation d'eau agricole.
+> 💡 **Contexte métier (objectif fonctionnel du projet).** 
+> L'irrigation représente l'essentiel de la consommation d'eau agricole.
 > Piloter l'arrosage à partir de mesures temps réel (humidité, météo, pH) plutôt que d'un calendrier
-> fixe réduit le gaspillage d'eau et améliore le rendement — c'est l'objectif fonctionnel du projet.
+> fixe réduit le gaspillage d'eau et améliore le rendement.
 
 ---
 
@@ -636,5 +637,4 @@ agri-iot-compose-k8s-cloud/
 
 ## 17. Licence
 
-Distribué sous licence **MIT** — voir [`LICENSE`](LICENSE). Projet réalisé dans un cadre académique
-(Master / S9, Cloud Computing).
+Distribué sous licence **MIT** — voir [`LICENSE`](LICENSE). Projet réalisé dans un cadre académique.
